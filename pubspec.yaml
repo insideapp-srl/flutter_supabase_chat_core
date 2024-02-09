@@ -1,0 +1,24 @@
+name: flutter_supabase_chat_core
+description: >
+  Actively maintained, community-driven Supabase BaaS for chat applications
+  with an optional chat UI.
+version: 0.0.1
+homepage: https://flutter_supabase_chat_core.insideapp.it
+repository: https://github.com/insideapp-srl/flutter_supabase_chat_core
+
+environment:
+  sdk: '>=2.19.0 <4.0.0'
+  flutter: '>=3.0.0'
+
+dependencies:
+  dio: ^5.4.0
+  flutter:
+    sdk: flutter
+  flutter_chat_types: ^3.6.2
+  meta: ^1.10.0
+  supabase_flutter: ^2.3.3
+
+dev_dependencies:
+  flutter_lints: ^3.0.1
+  flutter_test:
+    sdk: flutter
