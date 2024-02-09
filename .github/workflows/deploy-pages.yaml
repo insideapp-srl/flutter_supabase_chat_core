@@ -7,9 +7,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: doc
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -20,9 +18,11 @@ jobs:
           node-version: 20
 
       - name: Install dependencies
+        working-directory: ./doc
         run: npm install
 
       - name: Build site
+        working-directory: ./doc
         run: npm run build
 
       - name: Deploy to GitHub Pages
