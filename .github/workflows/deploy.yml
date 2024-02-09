@@ -1,7 +1,7 @@
-on: workflow_dispatch
-#  push:
-#    branches:
-#      - main # Change this to your default branch if it's different
+on:
+  push:
+    branches:
+      - main
 
 jobs:
   deploy:

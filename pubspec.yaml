@@ -3,7 +3,7 @@ description: >
   Actively maintained, community-driven Supabase BaaS for chat applications
   with an optional chat UI.
 version: 0.0.1
-homepage: https://flutter_supabase_chat_core.insideapp.it
+homepage: https://flutter-supabase-chat-core.insideapp.it
 repository: https://github.com/insideapp-srl/flutter_supabase_chat_core
 
 environment:
