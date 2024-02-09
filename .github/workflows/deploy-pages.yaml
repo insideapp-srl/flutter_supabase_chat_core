@@ -7,22 +7,22 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: doc
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
         with:
-          node-version: 18 # Use Node.js 18 here
+          node-version: 20
 
       - name: Install dependencies
-        working-directory: ./doc
         run: npm install
 
       - name: Build site
-        working-directory: ./doc
         run: npm run build
 
       - name: Deploy to GitHub Pages
