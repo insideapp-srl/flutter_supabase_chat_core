@@ -1,4 +1,4 @@
-name: build
+name: Flutter analyze
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  flutter-analyze:
     runs-on: ubuntu-latest
 
     steps:
@@ -32,5 +32,3 @@ jobs:
 
       - name: Analyze project source with pana
         run: pana
-
-
