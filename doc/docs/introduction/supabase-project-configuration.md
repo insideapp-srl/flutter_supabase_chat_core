@@ -34,3 +34,7 @@ cd ./example/utils/
 cd .\example\utils\
 .\prepare.ps1 -hostname "your-postgres-host" -port your-postgres-port -database "your-postgres-database-name" -user "your-postgres-user"
 ```
+
+after running the database preparation script. you need to change the database schema exposure setting by adding the `chats` schema (from the supabase dashboard):
+
+![Supabase dashboard schema exposure setting](/img/supabase-schema-exposure-setting.png "Schema exposure setting")

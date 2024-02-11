@@ -54,7 +54,7 @@ Flyer Chat is a platform for creating in-app chat experiences using Flutter or [
 
 * **Chat UI agnostic**. You can choose the chat UI you prefer. But if you don't have one, we provide our own free and open-source [Flutter Chat UI](https://pub.dev/packages/flutter_chat_ui), which can be used to create a working chat in minutes.
 
-* **Easy to use**. Returns streams of data for messages, rooms and users. [Supabase Security Rules](https://supabase.google.com/docs/rules) control access to the data. Check our [documentation](https://flutter-supabase-chat-core.insideapp.it/guides/supabase-security) for the info.
+* **Easy to use**. Returns streams of data for messages, rooms and users. [Supabase Security Rules](https://supabase.com/docs/guides/database/postgres/row-level-security) control access to the data. Check our [documentation](https://flutter-supabase-chat-core.insideapp.it/guides/supabase-security) for the info.
 
 ## Getting Started
 
@@ -98,9 +98,13 @@ cd .\example\utils\
 .\prepare.ps1 -hostname "your-postgres-host" -port your-postgres-port -database "your-postgres-database-name" -user "your-postgres-user"
 ```
 
+after running the database preparation script. you need to change the database schema exposure setting by adding the `chats` schema (from the supabase dashboard):
+
+![Supabase dashboard schema exposure setting](doc/static/img/supabase-schema-exposure-setting.png "Schema exposure setting")
+
 Read our [documentation](https://flutter-supabase-chat-core.insideapp.it) or see the [example](https://github.com/insideapp-srl/flutter_supabase_chat_core/tree/main/example) project. To run the example project you need to have your own [Supabase](https://supabase.com/dashboard/projects) project and then follow [Add Supabase to your Flutter app](https://supabase.com/docs/reference/dart/initializing), override `example/lib/supabase_options.dart`, don't commit it though 😉
 
-After all of this is done you will need to register a couple of users and the example app will automatically suggest email and password on the register screen, default password is `Qawsed1-`. To set up [Supabase Security Rules](https://supabase.google.com/docs/rules) so users can see only the data they should see, continue with our [documentation](https://flutter-supabase-chat-core.insideapp.it/).
+After all of this is done you will need to register a couple of users and the example app will automatically suggest email and password on the register screen, default password is `Qawsed1-`. To set up [Supabase Security Rules](https://supabase.com/docs/guides/database/postgres/row-level-security) so users can see only the data they should see, continue with our [documentation](https://flutter-supabase-chat-core.insideapp.it/).
 
 ## Contributing
 
