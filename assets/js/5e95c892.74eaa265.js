@@ -1,1 +1,0 @@
-"use strict";(self.webpackChunkflutter_supabase_chat_core=self.webpackChunkflutter_supabase_chat_core||[]).push([[68],{3564:(e,r,s)=>{s.r(r),s.d(r,{default:()=>n});s(1504);var c=s(5456),a=s(5756),t=s(5864),u=s(5464),l=s(9012),h=s(7624);function n(e){return(0,h.jsx)(a.cr,{className:(0,c.c)(t.W.wrapper.docsPages),children:(0,h.jsx)(l.c,{children:(0,u.k)(e.route.routes)})})}}}]);

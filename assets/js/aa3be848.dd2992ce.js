@@ -1,1 +1,0 @@
-"use strict";(self.webpackChunkflutter_supabase_chat_core=self.webpackChunkflutter_supabase_chat_core||[]).push([[472],{2080:e=>{e.exports=JSON.parse('{"name":"docusaurus-plugin-content-docs","id":"default"}')}}]);
