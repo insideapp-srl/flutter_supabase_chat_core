@@ -68,7 +68,7 @@ class _AuthScreenState extends State<AuthScreen> {
               email: signupData.name,
               password: signupData.password!,
             );
-            await SupabseChatCore.instance.updateUser(
+            await SupabaseChatCore.instance.updateUser(
               types.User(
                 firstName: signupData.additionalSignupData!['first_name'],
                 id: response.user!.id,

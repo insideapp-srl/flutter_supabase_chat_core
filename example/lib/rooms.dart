@@ -144,7 +144,7 @@ class _RoomsPageState extends State<RoomsPage> {
               ),
             )
           : StreamBuilder<List<types.Room>>(
-              stream: SupabseChatCore.instance.rooms(),
+              stream: SupabaseChatCore.instance.rooms(),
               initialData: const [],
               builder: (context, snapshot) {
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -164,7 +164,7 @@ class _RoomsPageState extends State<RoomsPage> {
                       leading: _buildAvatar(room),
                       title: Text(room.name ?? ''),
                       subtitle: Text(
-                          '${timeago.format(DateTime.now().subtract(Duration(milliseconds: DateTime.now().millisecondsSinceEpoch - (room.updatedAt ?? 0))), locale: 'en_short')} ${room.lastMessages != null && room.lastMessages!.isNotEmpty ? (room.lastMessages!.first as types.TextMessage).text : ''}'),
+                          '${timeago.format(DateTime.now().subtract(Duration(milliseconds: DateTime.now().millisecondsSinceEpoch - (room.updatedAt ?? 0))), locale: 'en_short')} ${room.lastMessages != null && room.lastMessages!.isNotEmpty && room.lastMessages!.first is types.TextMessage ? (room.lastMessages!.first as types.TextMessage).text : ''}'),
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(

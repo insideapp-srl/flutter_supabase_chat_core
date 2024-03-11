@@ -48,6 +48,12 @@
 
 <br>
 
+Have you ever wanted to implement a chat in your application? Do you think it's difficult and complex?
+
+Try this, thanks to the magnificent [Supabase](https://supabase.com/) platform and the [Flutter Chat UI](https://pub.dev/packages/flutter_chat_ui) package, you can achieve it in just a few minutes and effortlessly.
+
+---
+
 Flyer Chat is a platform for creating in-app chat experiences using Flutter or [React Native](https://github.com/flyerhq/react-native-supabase-chat-core). This repository contains Supabase BaaS implementation for Flutter. We are also working on our more advanced SaaS and self-hosted solutions.
 
 * **Free, open-source and community-driven**. We offer no paid plugins and strive to create an easy-to-use, almost drop-in chat experience for any application. Contributions are more than welcome! Please read our [Contributing Guide](CONTRIBUTING.md).
@@ -64,6 +70,38 @@ The example project that you find in the package repository allows you to have a
 
 `Dart >=2.19.0` and `Flutter >=3.0.0`, [Supabase](https://supabase.com) project.
 
+### Create a Supabase project
+
+1. Install Supabase CLI: [Official documentation](https://supabase.com/docs/guides/cli/getting-started)
+2. Open your bash
+3. Login with Supabase:
+
+```bash
+supabase login
+```
+
+4. Create new project (For example `demo-chat`):
+
+```bash
+supabase projects create demo-chat
+```
+
+5. Select your organization
+6. Select an region
+7. Insert a secure password for new Postgres database (Save this in a secure location)
+8. Obtain your `REFERENCE ID` (After command select your project, for example `demo-chat`):
+
+```bash
+supabase projects list
+```
+
+9. Obtain your `anon` key (After command select your project, for example `demo-chat`):
+
+```bash
+supabase projects api-keys
+```
+10. Edit `example project` file `example/lib/supabase_options.dart`, insert your project `{{your_project_reference_id}}` and `{{supabase_anon_key}}`
+
 #### Prepare Supabase project
 
 Inside the example project (`example/utils`) there is a script, running the latter will automatically configure the Supabase project, creating tables, security rules, buckets and everything that is necessary for the example project to function.
@@ -76,13 +114,15 @@ In order to run the script you need to be aware of the following information abo
 - `user` : Database user
 - `password` : Database password
 
-This information, with the exception of the password which is provided only during the creation of the database (if necessary, you can use the password reset function of your database to obtain it), can be found very easily from the Dashboard of your Supabase project:
+This information, except the password which is provided only during the creation of the database (if necessary, you can use the password reset function of your database to obtain it), can be found very easily from the Dashboard of your Supabase project:
 
-![Supabase dashboard database info](doc/static/img/supabase_project_credential.png "Database info")
+![Supabase dashboard database info](doc/static/img/supabase-project-credential.png "Database info")
 
 #### Running prepare script
 
 Below are the commands for running the scripts (During execution you will be asked for the password for your database user):
+
+>   Required `psql` installed -> [Official documentation](https://www.postgresql.org/download/)
 
 #### Linux
 
@@ -102,40 +142,13 @@ after running the database preparation script. you need to change the database s
 
 ![Supabase dashboard schema exposure setting](doc/static/img/supabase-schema-exposure-setting.png "Schema exposure setting")
 
+Optional (**Only for test**): Disable email verification and save the configuration (To speed up testing and allow user registration in just one click, it is advisable to disable mailbox verification):
+
+![Supabase dashboard disable email verification](doc/static/img/supabase-disable-confirm-email.png "Disable email verification")
+
 Read our [documentation](https://flutter-supabase-chat-core.insideapp.it) or see the [example](https://github.com/insideapp-srl/flutter_supabase_chat_core/tree/main/example) project. To run the example project you need to have your own [Supabase](https://supabase.com/dashboard/projects) project and then follow [Add Supabase to your Flutter app](https://supabase.com/docs/reference/dart/initializing), override `example/lib/supabase_options.dart`, don't commit it though 😉
 
 After all of this is done you will need to register a couple of users and the example app will automatically suggest email and password on the register screen, default password is `Qawsed1-`. To set up [Supabase Security Rules](https://supabase.com/docs/guides/database/postgres/row-level-security) so users can see only the data they should see, continue with our [documentation](https://flutter-supabase-chat-core.insideapp.it/).
-
-## Contributing
-
-Please read our [Contributing Guide](CONTRIBUTING.md) before submitting a pull request to the project.
-
-## Code of Conduct
-
-Flyer Chat has adopted the [Contributor Covenant](https://www.contributor-covenant.org) as its Code of Conduct, and we expect project participants to adhere to it. Please read [the full text](CODE_OF_CONDUCT.md) so that you can understand what actions will and will not be tolerated.
-
-## License
-
-Licensed under the [Apache License, Version 2.0](LICENSE)
-
-## Example project progress
-
-Below are the features implemented for each platform:
-
-| Feature               | Web | Android | iOS | Windows | macOS |  Linux   |
-|-----------------------|:-:|:-------:|:---:|:-------:|:-----:|:--------:|
-| Signup                | ✅ |         |     |    ✅    |       |          |
-| Signin                | ✅ |         |     |    ✅    |       |          |
-| Rooms list screen     | ✅ |         |     |    ✅    |       |          |
-| Create direct room    | ✅ |         |     |         |       |          |
-| Create group room     |   |         |     |         |       |          |
-| Create channel room   |   |         |     |         |       |          |
-| Chat screen           | ✅ |         |     | ✅ |       |          |
-| Search room           |   |         |     |         |       |          |
-| Upload image          | ✅ |         |     | ✅ |       |          |
-| Preview image message | ✅ |         |     | ✅ |       |          |
-| Upload file           | ✅ |         |     |         |       |          |
-| Download file         |   |         |     |         |       |          |
 
 ## RLS (Row level security)
 
@@ -180,15 +193,51 @@ The preparation script automatically configures the security rules on the databa
 - `UPDATE` : Only the user himself.
 - `DELETE` : Only the user himself.
 
+## Contributing
+
+Please read our [Contributing Guide](CONTRIBUTING.md) before submitting a pull request to the project.
+
+## Code of Conduct
+
+Flyer Chat has adopted the [Contributor Covenant](https://www.contributor-covenant.org) as its Code of Conduct, and we expect project participants to adhere to it. Please read [the full text](CODE_OF_CONDUCT.md) so that you can understand what actions will and will not be tolerated.
+
+## License
+
+Licensed under the [Apache License, Version 2.0](LICENSE)
+
+## Example project progress
+
+Below are the features implemented for each platform:
+
+| Feature               | Web | Android | iOS | Windows | macOS | Linux |
+|-----------------------|:---:|:-------:|:---:|:-------:|:-----:|:-----:|
+| Signup                |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| SignIn                |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Rooms list screen     |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Create direct room    |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Create group room     | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Create channel room   | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Chat screen           |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Search room           | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Search message        | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Search user           | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Upload image          |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Preview image message |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Upload file           |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Download file         |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+
+- ✅ Tested
+- 🟡 Supported but not tested
+- 🚧 Planned
+
 ## Activities to complete (Roadmap)
 
 Below are some activities to complete to have a more complete and optimized project also for use cases in larger projects.
 
-1. Check the correct functioning of the RLS security rules
-2. Add the missing triggers
-3. Optimization of the join of users who are part of a chat room. At the moment every time you want to get a chat room a SELECT is performed to get the users of the chat room. It does not perform as the chat rooms or users present in them grow.
-4. Error handling
-5. Chat room groups
-6. Chat room channels
-7. Sending audio messages
-8. Improve documentation
+1. Add the missing triggers
+2. Optimization of the join of users who are part of a chat room. At the moment every time you want to get a chat room a SELECT is performed to get the users of the chat room. It does not perform as the chat rooms or users present in them grow.
+3. Error handling
+4. Chat room groups
+5. Chat room channels
+6. Sending audio messages
+7. Improve documentation

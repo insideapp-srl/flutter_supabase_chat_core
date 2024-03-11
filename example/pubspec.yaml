@@ -11,7 +11,8 @@ dependencies:
   cupertino_icons: ^1.0.6
   dio: ^5.4.0
   faker: ^2.1.0
-  file_picker: ^6.1.1
+  file_picker: ^6.2.0
+  file_saver: ^0.2.11
   flutter:
     sdk: flutter
   flutter_chat_types: ^3.6.2
@@ -19,13 +20,13 @@ dependencies:
   flutter_login: ^5.0.0
   flutter_supabase_chat_core:
     path: ../
-  flutter_svg: ^2.0.9
-  http: ^1.2.0
+  flutter_svg: ^2.0.10+1
+  http: ^1.2.1
   image_picker: ^1.0.7
   mime: ^1.0.5
   open_filex: ^4.4.0
   path_provider: ^2.1.2
-  supabase_flutter: ^2.3.3
+  supabase_flutter: ^2.3.4
   timeago: ^3.6.1
   uuid: ^4.3.3
 

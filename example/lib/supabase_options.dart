@@ -9,6 +9,6 @@ class SupabaseOptions {
 }
 
 final SupabaseOptions supabaseOptions = SupabaseOptions(
-  url: 'supabase_url',
-  anonKey: 'supabase_anon_key',
+  url: 'https://{{your_project_reference_id}}.supabase.co',
+  anonKey: '{{supabase_anon_key}}',
 );

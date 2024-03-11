@@ -32,7 +32,7 @@ class UsersPage extends StatelessWidget {
 
   void _handlePressed(types.User otherUser, BuildContext context) async {
     final navigator = Navigator.of(context);
-    final room = await SupabseChatCore.instance.createRoom(otherUser);
+    final room = await SupabaseChatCore.instance.createRoom(otherUser);
 
     navigator.pop();
     await navigator.push(
@@ -51,7 +51,7 @@ class UsersPage extends StatelessWidget {
           title: const Text('Users'),
         ),
         body: StreamBuilder<List<types.User>>(
-          stream: SupabseChatCore.instance.users(),
+          stream: SupabaseChatCore.instance.users(),
           initialData: const [],
           builder: (context, snapshot) {
             if (!snapshot.hasData || snapshot.data!.isEmpty) {

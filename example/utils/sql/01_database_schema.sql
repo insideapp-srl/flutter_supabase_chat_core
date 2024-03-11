@@ -109,12 +109,6 @@ ALTER TABLE ONLY chats.messages
 ALTER TABLE ONLY chats.users
     ADD CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
-CREATE POLICY grant_all ON chats.messages USING (true) WITH CHECK (true);
-
-CREATE POLICY grant_all ON chats.rooms USING (true) WITH CHECK (true);
-
-CREATE POLICY grant_all ON chats.users USING (true) WITH CHECK (true);
-
 ALTER TABLE chats.messages ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE chats.rooms ENABLE ROW LEVEL SECURITY;
