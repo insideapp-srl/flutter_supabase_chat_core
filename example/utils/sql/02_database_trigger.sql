@@ -40,3 +40,16 @@ CREATE TRIGGER update_last_messages_trigger
     AFTER INSERT ON chats.messages
     FOR EACH ROW
     EXECUTE FUNCTION chats.update_last_messages();
+
+
+CREATE OR REPLACE FUNCTION set_message_status_to_sent()
+    RETURNS TRIGGER AS $$
+BEGIN
+    NEW.status := 'sent';
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_status_before_insert
+    BEFORE INSERT ON chats.messages
+    FOR EACH ROW EXECUTE FUNCTION set_message_status_to_sent();

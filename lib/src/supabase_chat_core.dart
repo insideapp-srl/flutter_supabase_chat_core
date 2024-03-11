@@ -6,8 +6,8 @@ import 'util.dart';
 
 /// Provides access to Supabase chat data. Singleton, use
 /// SupabaseChatCore.instance to access methods.
-class SupabseChatCore {
-  SupabseChatCore._privateConstructor() {
+class SupabaseChatCore {
+  SupabaseChatCore._privateConstructor() {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       supabaseUser = data.session?.user;
     });
@@ -27,7 +27,8 @@ class SupabseChatCore {
   User? supabaseUser = Supabase.instance.client.auth.currentUser;
 
   /// Singleton instance.
-  static final SupabseChatCore instance = SupabseChatCore._privateConstructor();
+  static final SupabaseChatCore instance =
+      SupabaseChatCore._privateConstructor();
 
   /// Gets proper [SupabaseClient] instance.
   SupabaseClient get client => Supabase.instance.client;
@@ -224,7 +225,7 @@ class SupabseChatCore {
     return query.map(
       (snapshot) => snapshot.fold<List<types.Message>>(
         [],
-        (previousValue, data) {
+        (previousMessages, data) {
           final author = room.users.firstWhere(
             (u) => u.id == data['authorId'],
             orElse: () => types.User(id: data['authorId'] as String),
@@ -232,7 +233,15 @@ class SupabseChatCore {
           data['author'] = author.toJson();
           data['id'] = data['id'].toString();
           data['roomId'] = data['roomId'].toString();
-          return [...previousValue, types.Message.fromJson(data)];
+          final newMessage = types.Message.fromJson(data);
+          final index =
+              previousMessages.indexWhere((msg) => msg.id == newMessage.id);
+          if (index != -1) {
+            previousMessages[index] = newMessage;
+          } else {
+            previousMessages.add(newMessage);
+          }
+          return previousMessages;
         },
       ),
     );
@@ -360,22 +369,22 @@ class SupabseChatCore {
 
   /// Updates a message in the Supabase. Accepts any message and a
   /// room ID. Message will probably be taken from the [messages] stream.
-  void updateMessage(types.Message message, String roomId) async {
-    if (supabaseUser == null) return;
-    if (message.author.id != supabaseUser!.id) return;
+  Future<void> updateMessage(types.Message message, String roomId) async {
+    //if (supabaseUser == null) return;
+    //if (message.author.id != supabaseUser!.id) return;
 
     final messageMap = message.toJson();
     messageMap.removeWhere(
       (key, value) => key == 'author' || key == 'createdAt' || key == 'id',
     );
-    messageMap['authorId'] = message.author.id;
+    //messageMap['authorId'] = message.author.id;
     messageMap['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
 
     await client
         .schema(config.schema)
         .from(config.messagesTableName)
         .update(messageMap)
-        .eq('roomId', message.id)
+        .eq('roomId', roomId)
         .eq('id', message.id);
   }
 

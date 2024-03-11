@@ -1,6 +1,5 @@
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
+import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
@@ -10,7 +9,6 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:mime/mime.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
@@ -35,35 +33,39 @@ class _ChatPageState extends State<ChatPage> {
       context: context,
       builder: (BuildContext context) => SafeArea(
         child: SizedBox(
-          height: 144,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _handleImageSelection();
-                },
-                child: const Row(
-                  children: [
-                    Icon(Icons.image),
-                    Text('Image'),
-                  ],
+          height: 130,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: <Widget>[
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _handleImageSelection();
+                  },
+                  child: const Row(
+                    children: [
+                      Icon(Icons.image),
+                      Text('Image'),
+                    ],
+                  ),
                 ),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _handleFileSelection();
-                },
-                child: const Row(
-                  children: [
-                    Icon(Icons.attach_file),
-                    Text('File'),
-                  ],
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _handleFileSelection();
+                  },
+                  child: const Row(
+                    children: [
+                      Icon(Icons.attach_file),
+                      Text('File'),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -73,8 +75,8 @@ class _ChatPageState extends State<ChatPage> {
   void _handleFileSelection() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.any,
+      withData: true,
     );
-
     if (result != null && result.files.single.bytes != null) {
       _setAttachmentUploading(true);
 
@@ -84,7 +86,8 @@ class _ChatPageState extends State<ChatPage> {
         final mimeType = lookupMimeType(name, headerBytes: bytes);
         final reference = await Supabase.instance.client.storage
             .from(buket)
-            .uploadBinary('${widget.room.id}/${const Uuid().v1()}', bytes!,
+            .uploadBinary(
+                '${widget.room.id}/${const Uuid().v1()}-$name', bytes!,
                 fileOptions: FileOptions(contentType: mimeType));
         final url =
             '${Supabase.instance.client.storage.url}/object/authenticated/$reference';
@@ -95,7 +98,7 @@ class _ChatPageState extends State<ChatPage> {
           uri: url,
         );
 
-        SupabseChatCore.instance.sendMessage(message, widget.room.id);
+        SupabaseChatCore.instance.sendMessage(message, widget.room.id);
         _setAttachmentUploading(false);
       } finally {
         _setAttachmentUploading(false);
@@ -119,7 +122,7 @@ class _ChatPageState extends State<ChatPage> {
       try {
         final reference = await Supabase.instance.client.storage
             .from(buket)
-            .uploadBinary('${widget.room.id}/${const Uuid().v1()}', bytes,
+            .uploadBinary('${widget.room.id}/${const Uuid().v1()}-$name', bytes,
                 fileOptions: FileOptions(contentType: mimeType));
         final url =
             '${Supabase.instance.client.storage.url}/object/authenticated/$reference';
@@ -130,7 +133,7 @@ class _ChatPageState extends State<ChatPage> {
           uri: url,
           width: image.width.toDouble(),
         );
-        SupabseChatCore.instance.sendMessage(
+        SupabaseChatCore.instance.sendMessage(
           message,
           widget.room.id,
         );
@@ -141,52 +144,36 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
+  Map<String, String> get storageHeaders => {
+        'Authorization':
+            'Bearer ${Supabase.instance.client.auth.currentSession?.accessToken}',
+      };
+
   void _handleMessageTap(BuildContext _, types.Message message) async {
     if (message is types.FileMessage) {
-      var localPath = message.uri;
-
-      if (message.uri.startsWith('http')) {
-        try {
-          final updatedMessage = message.copyWith(isLoading: true);
-          SupabseChatCore.instance.updateMessage(
-            updatedMessage,
-            widget.room.id,
-          );
-
-          final client = http.Client();
-          final request = await client.get(Uri.parse(message.uri));
-          final bytes = request.bodyBytes;
-          final documentsDir = await getDownloadsDirectory();
-          localPath = '$documentsDir/${message.name}';
-
-          if (!File(localPath).existsSync()) {
-            final file = File(localPath);
-            await file.writeAsBytes(bytes);
-          }
-        } finally {
-          final updatedMessage = message.copyWith(isLoading: false);
-          SupabseChatCore.instance.updateMessage(
-            updatedMessage,
-            widget.room.id,
-          );
-        }
-      }
-
-      await OpenFilex.open(localPath);
+      final client = http.Client();
+      final request =
+          await client.get(Uri.parse(message.uri), headers: storageHeaders);
+      final result = await FileSaver.instance.saveFile(
+        name: message.uri.split('/').last,
+        bytes: request.bodyBytes,
+      );
+      await OpenFilex.open(result);
     }
   }
 
-  void _handlePreviewDataFetched(
+  Future<void> _handlePreviewDataFetched(
     types.TextMessage message,
     types.PreviewData previewData,
-  ) {
+  ) async {
     final updatedMessage = message.copyWith(previewData: previewData);
 
-    SupabseChatCore.instance.updateMessage(updatedMessage, widget.room.id);
+    await SupabaseChatCore.instance
+        .updateMessage(updatedMessage, widget.room.id);
   }
 
   void _handleSendPressed(types.PartialText message) {
-    SupabseChatCore.instance.sendMessage(
+    SupabaseChatCore.instance.sendMessage(
       message,
       widget.room.id,
     );
@@ -206,10 +193,10 @@ class _ChatPageState extends State<ChatPage> {
         ),
         body: StreamBuilder<types.Room>(
           initialData: widget.room,
-          stream: SupabseChatCore.instance.room(widget.room.id),
+          stream: SupabaseChatCore.instance.room(widget.room.id),
           builder: (context, snapshot) => StreamBuilder<List<types.Message>>(
             initialData: const [],
-            stream: SupabseChatCore.instance.messages(snapshot.data!),
+            stream: SupabaseChatCore.instance.messages(snapshot.data!),
             builder: (context, snapshot) => Chat(
               showUserNames: true,
               showUserAvatars: true,
@@ -220,11 +207,17 @@ class _ChatPageState extends State<ChatPage> {
               onPreviewDataFetched: _handlePreviewDataFetched,
               onSendPressed: _handleSendPressed,
               user: types.User(
-                id: SupabseChatCore.instance.supabaseUser?.id ?? '',
+                id: SupabaseChatCore.instance.supabaseUser?.id ?? '',
               ),
-              imageHeaders: {
-                'Authorization':
-                    'Bearer ${Supabase.instance.client.auth.currentSession?.accessToken}',
+              imageHeaders: storageHeaders,
+              onMessageVisibilityChanged: (message, visible) async {
+                if (message.status != types.Status.seen &&
+                    message.author.id !=
+                        SupabaseChatCore.instance.supabaseUser?.id) {
+                  await SupabaseChatCore.instance.updateMessage(
+                      message.copyWith(status: types.Status.seen),
+                      widget.room.id);
+                }
               },
             ),
           ),
