@@ -12,6 +12,7 @@ class SupabaseChatCoreConfig {
     this.roomsTableName,
     this.messagesTableName,
     this.usersTableName,
+    this.realtimeOnlineUserPrefixChannel,
   );
 
   /// Property to set database schema name.
@@ -25,4 +26,7 @@ class SupabaseChatCoreConfig {
 
   /// Property to set users table name.
   final String usersTableName;
+
+  /// Property to set online users realtime channel.
+  final String realtimeOnlineUserPrefixChannel;
 }

@@ -51,34 +51,67 @@ class _RoomsPageState extends State<RoomsPage> {
 
   Widget _buildAvatar(types.Room room) {
     var color = Colors.transparent;
+    types.User? otherUser;
 
     if (room.type == types.RoomType.direct) {
       try {
-        final otherUser = room.users.firstWhere(
+        otherUser = room.users.firstWhere(
           (u) => u.id != _user!.id,
         );
 
         color = getUserAvatarNameColor(otherUser);
       } catch (e) {
-        // Do nothing if other user is not found.
+        // Do nothing if the other user is not found.
       }
     }
 
     final hasImage = room.imageUrl != null;
     final name = room.name ?? '';
+    final Widget child = CircleAvatar(
+      backgroundColor: hasImage ? Colors.transparent : color,
+      backgroundImage: hasImage ? NetworkImage(room.imageUrl!) : null,
+      radius: 20,
+      child: !hasImage
+          ? Text(
+              name.isEmpty ? '' : name[0].toUpperCase(),
+              style: const TextStyle(color: Colors.white),
+            )
+          : null,
+    );
+    if (otherUser == null) {
+      return Container(
+        margin: const EdgeInsets.only(right: 16),
+        child: child,
+      );
+    }
 
+    // Se `otherUser` non è null, la stanza è diretta e possiamo mostrare l'indicatore di stato online.
     return Container(
       margin: const EdgeInsets.only(right: 16),
-      child: CircleAvatar(
-        backgroundColor: hasImage ? Colors.transparent : color,
-        backgroundImage: hasImage ? NetworkImage(room.imageUrl!) : null,
-        radius: 20,
-        child: !hasImage
-            ? Text(
-                name.isEmpty ? '' : name[0].toUpperCase(),
-                style: const TextStyle(color: Colors.white),
-              )
-            : null,
+      child: UserOnlineStatusWidget(
+        uid: otherUser.id,
+        builder: (status) => Stack(
+          alignment: Alignment.bottomRight,
+          children: [
+            child,
+            if (status ==
+                UserOnlineStatus
+                    .online) // Assumendo che `status` indichi lo stato online
+              Container(
+                width: 10,
+                height: 10,
+                margin: const EdgeInsets.only(right: 3, bottom: 3),
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white,
+                    width: 2,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -161,6 +194,7 @@ class _RoomsPageState extends State<RoomsPage> {
                   itemBuilder: (context, index) {
                     final room = snapshot.data![index];
                     return ListTile(
+                      key: ValueKey(room.id),
                       leading: _buildAvatar(room),
                       title: Text(room.name ?? ''),
                       subtitle: Text(

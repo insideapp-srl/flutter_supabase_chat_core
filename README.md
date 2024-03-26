@@ -225,6 +225,7 @@ Below are the features implemented for each platform:
 | Preview image message |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 | Upload file           |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 | Download file         |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Users online status   |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 
 - ✅ Tested
 - 🟡 Supported but not tested

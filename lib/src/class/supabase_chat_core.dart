@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../util.dart';
 import 'supabase_chat_core_config.dart';
-import 'util.dart';
+import 'user_online_status.dart';
 
 /// Provides access to Supabase chat data. Singleton, use
 /// SupabaseChatCore.instance to access methods.
@@ -10,6 +13,9 @@ class SupabaseChatCore {
   SupabaseChatCore._privateConstructor() {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       supabaseUser = data.session?.user;
+      _currentUserOnlineStatusChannel = supabaseUser != null
+          ? getUserOnlineStatusChannel(supabaseUser!.id)
+          : null;
     });
   }
 
@@ -20,11 +26,56 @@ class SupabaseChatCore {
     'rooms',
     'messages',
     'users',
+    'online-user-',
   );
 
   /// Current logged in user in Supabase. Does not update automatically.
   /// Use [Supabase.instance.client.auth.onAuthStateChange] to listen to the state changes.
   User? supabaseUser = Supabase.instance.client.auth.currentUser;
+
+  /// Returns user online status realtime channel .
+  RealtimeChannel getUserOnlineStatusChannel(String uid) =>
+      client.channel('${config.realtimeOnlineUserPrefixChannel}$uid');
+
+  /// Returns a current user online status realtime channel .
+  RealtimeChannel? _currentUserOnlineStatusChannel;
+
+  bool _userStatusSubscribed = false;
+  bool _userStatusSubscribing = false;
+
+  Future<void> setPresenceStatus(UserOnlineStatus status) async {
+    if (!_userStatusSubscribed && !_userStatusSubscribing) {
+      _userStatusSubscribing = true;
+      _currentUserOnlineStatusChannel?.subscribe(
+        (status, error) async {
+          if (status != RealtimeSubscribeStatus.subscribed) return;
+          _userStatusSubscribed = true;
+          _userStatusSubscribing = false;
+          _trackUserStatus();
+        },
+      );
+    }
+
+    switch (status) {
+      case UserOnlineStatus.online:
+        if (_userStatusSubscribed) {
+          _trackUserStatus();
+        }
+        break;
+      case UserOnlineStatus.offline:
+        await _currentUserOnlineStatusChannel?.untrack();
+        break;
+    }
+  }
+
+  void _trackUserStatus() async {
+    final userStatus = {
+      'uid': supabaseUser?.id,
+      'online_at': DateTime.now().toIso8601String(),
+    };
+
+    await _currentUserOnlineStatusChannel?.track(userStatus);
+  }
 
   /// Singleton instance.
   static final SupabaseChatCore instance =
@@ -267,6 +318,21 @@ class SupabaseChatCore {
         );
   }
 
+  /// Returns a stream of online user state from Supabase Realtime.
+  Stream<UserOnlineStatus> userOnlineStatus(String uid) {
+    final controller = StreamController<UserOnlineStatus>();
+    UserOnlineStatus userStatus(List<Presence> presences, String uid) =>
+        presences.map((e) => e.payload['uid']).contains(uid)
+            ? UserOnlineStatus.online
+            : UserOnlineStatus.offline;
+    getUserOnlineStatusChannel(uid).onPresenceJoin((payload) {
+      controller.sink.add(userStatus(payload.newPresences, uid));
+    }).onPresenceLeave((payload) {
+      controller.sink.add(userStatus(payload.currentPresences, uid));
+    }).subscribe();
+    return controller.stream;
+  }
+
   /// Returns a stream of rooms from Supabase. Only rooms where current
   /// logged in user exist are returned. [orderByUpdatedAt] is used in case
   /// you want to have last modified rooms on top, there are a couple
@@ -294,7 +360,6 @@ class SupabaseChatCore {
     return collection.asyncMap<List<types.Room>>(
       (snapshot) async {
         final roomsById = <String, types.Room>{};
-
         for (var data in snapshot) {
           final room = await processRoomRow(
             data,
@@ -303,7 +368,6 @@ class SupabaseChatCore {
             config.usersTableName,
             config.schema,
           );
-          roomsById.remove(room.id);
           roomsById[room.id] = room;
         }
 

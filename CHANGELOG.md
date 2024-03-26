@@ -1,3 +1,8 @@
+## [0.10.0] - 2024-03-26
+#### [@rickypid](https://github.com/rickypid)
+
+* Added user online status support
+
 ## [0.9.0] - 2024-03-11
 #### [@rickypid](https://github.com/rickypid)
 
