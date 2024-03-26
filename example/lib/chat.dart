@@ -207,13 +207,13 @@ class _ChatPageState extends State<ChatPage> {
               onPreviewDataFetched: _handlePreviewDataFetched,
               onSendPressed: _handleSendPressed,
               user: types.User(
-                id: SupabaseChatCore.instance.supabaseUser?.id ?? '',
+                id: SupabaseChatCore.instance.supabaseUser!.id,
               ),
               imageHeaders: storageHeaders,
               onMessageVisibilityChanged: (message, visible) async {
                 if (message.status != types.Status.seen &&
                     message.author.id !=
-                        SupabaseChatCore.instance.supabaseUser?.id) {
+                        SupabaseChatCore.instance.supabaseUser!.id) {
                   await SupabaseChatCore.instance.updateMessage(
                       message.copyWith(status: types.Status.seen),
                       widget.room.id);
