@@ -11,7 +11,6 @@ environment:
   flutter: '>=3.0.0'
 
 dependencies:
-  dio: ^5.4.1
   flutter:
     sdk: flutter
   flutter_chat_types: ^3.6.2
@@ -19,6 +18,6 @@ dependencies:
   supabase_flutter: ^2.3.4
 
 dev_dependencies:
-  flutter_lints: ^3.0.1
+  flutter_lints: ^3.0.2
   flutter_test:
     sdk: flutter

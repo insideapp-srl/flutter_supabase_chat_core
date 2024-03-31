@@ -238,41 +238,13 @@ class SupabaseChatCore {
   }
 
   /// Returns a stream of messages from Supabase for a given room.
-  Stream<List<types.Message>> messages(
-    types.Room room, {
-    List<Object?>? endAt,
-    List<Object?>? endBefore,
-    int? limit,
-    List<Object?>? startAfter,
-    List<Object?>? startAt,
-  }) {
+  Stream<List<types.Message>> messages(types.Room room) {
     final query = client
         .schema(config.schema)
         .from(config.messagesTableName)
         .stream(primaryKey: ['id'])
         .eq('roomId', int.parse(room.id))
         .order('createdAt', ascending: false);
-/*
-    if (endAt != null) {
-      query = query.endAt(endAt);
-    }
-
-    if (endBefore != null) {
-      query = query.endBefore(endBefore);
-    }
-
-    if (limit != null) {
-      query = query.limit(limit);
-    }
-
-    if (startAfter != null) {
-      query = query.startAfter(startAfter);
-    }
-
-    if (startAt != null) {
-      query = query.startAt(startAt);
-    }
- */
     return query.map(
       (snapshot) => snapshot.fold<List<types.Message>>(
         [],

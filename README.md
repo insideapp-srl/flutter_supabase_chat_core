@@ -209,23 +209,24 @@ Licensed under the [Apache License, Version 2.0](LICENSE)
 
 Below are the features implemented for each platform:
 
-| Feature               | Web | Android | iOS | Windows | macOS | Linux |
-|-----------------------|:---:|:-------:|:---:|:-------:|:-----:|:-----:|
-| Signup                |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| SignIn                |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Rooms list screen     |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Create direct room    |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Create group room     | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
-| Create channel room   | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
-| Chat screen           |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Search room           | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
-| Search message        | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
-| Search user           | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
-| Upload image          |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Preview image message |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Upload file           |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Download file         |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Users online status   |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Feature                  | Web | Android | iOS | Windows | macOS | Linux |
+|--------------------------|:---:|:-------:|:---:|:-------:|:-----:|:-----:|
+| Signup                   |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| SignIn                   |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Rooms list screen        |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Create direct room       |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Create group room        | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Create channel room      | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Chat screen              |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Search room              | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Search message           | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Search user              | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Upload image             |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Preview image message    |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Upload file              |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Download file            |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Users online status      |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Chat messages pagination |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 
 - ✅ Tested
 - 🟡 Supported but not tested
@@ -236,9 +237,8 @@ Below are the features implemented for each platform:
 Below are some activities to complete to have a more complete and optimized project also for use cases in larger projects.
 
 1. Add the missing triggers
-2. Optimization of the join of users who are part of a chat room. At the moment every time you want to get a chat room a SELECT is performed to get the users of the chat room. It does not perform as the chat rooms or users present in them grow.
-3. Error handling
-4. Chat room groups
-5. Chat room channels
-6. Sending audio messages
-7. Improve documentation
+2. Error handling
+3. Chat room groups
+4. Chat room channels
+5. Sending audio messages
+6. Improve documentation
