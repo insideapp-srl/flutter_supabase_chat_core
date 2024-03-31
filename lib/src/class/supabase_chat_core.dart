@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -43,6 +44,14 @@ class SupabaseChatCore {
   bool _userStatusSubscribed = false;
   bool _userStatusSubscribing = false;
 
+  Future<void> _trackUserStatus() async {
+    final userStatus = {
+      'uid': supabaseUser?.id,
+      'online_at': DateTime.now().toIso8601String(),
+    };
+    await _currentUserOnlineStatusChannel?.track(userStatus);
+  }
+
   Future<void> setPresenceStatus(UserOnlineStatus status) async {
     if (!_userStatusSubscribed && !_userStatusSubscribing) {
       _userStatusSubscribing = true;
@@ -51,7 +60,7 @@ class SupabaseChatCore {
           if (status != RealtimeSubscribeStatus.subscribed) return;
           _userStatusSubscribed = true;
           _userStatusSubscribing = false;
-          _trackUserStatus();
+          await _trackUserStatus();
         },
       );
     }
@@ -59,22 +68,15 @@ class SupabaseChatCore {
     switch (status) {
       case UserOnlineStatus.online:
         if (_userStatusSubscribed) {
-          _trackUserStatus();
+          await _trackUserStatus();
         }
         break;
       case UserOnlineStatus.offline:
-        await _currentUserOnlineStatusChannel?.untrack();
+        if (_userStatusSubscribed) {
+          await _currentUserOnlineStatusChannel?.untrack();
+        }
         break;
     }
-  }
-
-  void _trackUserStatus() async {
-    final userStatus = {
-      'uid': supabaseUser?.id,
-      'online_at': DateTime.now().toIso8601String(),
-    };
-
-    await _currentUserOnlineStatusChannel?.track(userStatus);
   }
 
   /// Singleton instance.
@@ -318,38 +320,55 @@ class SupabaseChatCore {
   Stream<List<types.Room>> rooms({bool orderByUpdatedAt = true}) {
     final fu = supabaseUser;
     if (fu == null) return const Stream.empty();
+    final controller = StreamController<List<types.Room>>();
+    final roomsList = <types.Room>[];
+
+    Future<void> onData(List<Map<String, dynamic>> data) async {
+      for (var val in data) {
+        final newRoom = await processRoomRow(
+          val,
+          fu,
+          client,
+          config.usersTableName,
+          config.schema,
+        );
+        final index = roomsList.indexWhere((room) => room.id == newRoom.id);
+        if (index != -1) {
+          roomsList[index] = newRoom;
+        } else {
+          roomsList.add(newRoom);
+        }
+      }
+      if (orderByUpdatedAt) {
+        roomsList.sort(
+          (a, b) => a.createdAt?.compareTo(b.createdAt ?? 0) ?? -1,
+        );
+      }
+      controller.sink.add(roomsList);
+    }
 
     final collection = orderByUpdatedAt
         ? client
             .schema(config.schema)
             .from(config.roomsTableName)
-            .stream(primaryKey: ['id']).order('updatedAt', ascending: false)
-        : client
-            .schema(config.schema)
-            .from(config.roomsTableName)
-            .stream(primaryKey: ['id']);
+            .select()
+            .order('updatedAt', ascending: false)
+        : client.schema(config.schema).from(config.roomsTableName).select();
 
-    return collection.asyncMap<List<types.Room>>(
-      (snapshot) async {
-        final roomsById = <String, types.Room>{};
-        for (var data in snapshot) {
-          final room = await processRoomRow(
-            data,
-            fu,
-            client,
-            config.usersTableName,
-            config.schema,
-          );
-          roomsById[room.id] = room;
-        }
-
-        return roomsById.values.toList();
-      },
-    );
+    collection.then(onData);
+    client
+        .channel('${config.schema}:${config.roomsTableName}')
+        .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: config.schema,
+            table: config.roomsTableName,
+            callback: (payload) => onData([payload.newRecord]))
+        .subscribe();
+    return controller.stream;
   }
 
   /// Sends a message to the Supabase. Accepts any partial message and a
-  /// room ID. If arbitraty data is provided in the [partialMessage]
+  /// room ID. If arbitrary data is provided in the [partialMessage]
   /// does nothing.
   void sendMessage(dynamic partialMessage, String roomId) async {
     if (supabaseUser == null) return;

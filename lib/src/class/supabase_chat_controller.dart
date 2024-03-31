@@ -31,7 +31,7 @@ class SupabaseChatController {
       .order('createdAt', ascending: false)
       .range(pageSize * _currentPage, (_currentPage * pageSize) + pageSize);
 
-  void _onMessages(List<Map<String, dynamic>> data) {
+  void _onData(List<Map<String, dynamic>> data) {
     for (var val in data) {
       final author = _room.users.firstWhere(
         (u) => u.id == val['authorId'],
@@ -55,7 +55,7 @@ class SupabaseChatController {
   }
 
   Stream<List<types.Message>> get messages {
-    _query().then((value) => _onMessages(value));
+    _query().then((value) => _onData(value));
     client
         .channel('${config.schema}:${config.messagesTableName}:${_room.id}')
         .onPostgresChanges(
@@ -67,13 +67,13 @@ class SupabaseChatController {
               column: 'roomId',
               value: _room.id,
             ),
-            callback: (payload) => _onMessages([payload.newRecord]))
+            callback: (payload) => _onData([payload.newRecord]))
         .subscribe();
     return _controller.stream;
   }
 
   Future<void> loadPreviousMessages() async {
     _currentPage += 1;
-    await _query().then((value) => _onMessages(value));
+    await _query().then((value) => _onData(value));
   }
 }
