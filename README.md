@@ -150,7 +150,7 @@ Read our [documentation](https://flutter-supabase-chat-core.insideapp.it) or see
 
 After all of this is done you will need to register a couple of users and the example app will automatically suggest email and password on the register screen, default password is `Qawsed1-`. To set up [Supabase Security Rules](https://supabase.com/docs/guides/database/postgres/row-level-security) so users can see only the data they should see, continue with our [documentation](https://flutter-supabase-chat-core.insideapp.it/).
 
-## Packages Widgets
+## Package Widgets
 
 This package implements some purely logical widgets (Without implementation of a specific UI). These wedgets make it easy to implement some chat-related logic without any effort.
 
