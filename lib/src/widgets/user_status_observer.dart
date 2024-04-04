@@ -4,9 +4,14 @@ import '../class/supabase_chat_core.dart';
 import '../class/user_online_status.dart';
 import 'user_status_detector/widgets_binding.dart';
 
+/// This widget takes care of observing the state of the application if it is foregrounded
+/// or if it is reduced. At each state change it notifies on the Supabase Realtime channel the state
+/// online/offline of the user
 class UserOnlineStateObserver extends StatefulWidget {
+  /// [child] Child widgets in the widget tree
   final Widget child;
 
+  /// [UserOnlineStateObserver] Widget constructor
   const UserOnlineStateObserver({
     super.key,
     required this.child,

@@ -15,7 +15,7 @@ dependencies:
     sdk: flutter
   flutter_chat_types: ^3.6.2
   meta: ^1.11.0
-  supabase_flutter: ^2.3.4
+  supabase_flutter: ^2.4.0
 
 dev_dependencies:
   flutter_lints: ^3.0.2
