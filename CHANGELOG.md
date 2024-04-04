@@ -15,6 +15,7 @@
 ### Dependencies
 
 * Removed `dio` dependency
+* Upgraded `supabase_flutter` to `^2.4.0`
 
 ## [0.9.0] - 2024-03-11
 #### [@rickypid](https://github.com/rickypid)
