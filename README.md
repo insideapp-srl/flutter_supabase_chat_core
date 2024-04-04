@@ -150,6 +150,41 @@ Read our [documentation](https://flutter-supabase-chat-core.insideapp.it) or see
 
 After all of this is done you will need to register a couple of users and the example app will automatically suggest email and password on the register screen, default password is `Qawsed1-`. To set up [Supabase Security Rules](https://supabase.com/docs/guides/database/postgres/row-level-security) so users can see only the data they should see, continue with our [documentation](https://flutter-supabase-chat-core.insideapp.it/).
 
+## Package Widgets
+
+This package implements some purely logical widgets (Without implementation of a specific UI). These wedgets make it easy to implement some chat-related logic without any effort.
+
+### UserOnlineStateObserver
+
+This widget should be placed in the widget tree as soon as possible, this is because this component is responsible for checking and updating the status of the user who logged into the app. When the app is in the foreground other users are notified of the online status, vice versa when the app is closed.
+
+```dart
+@override
+Widget build(BuildContext context) =>
+    MaterialApp(
+      ...
+      home: const UserOnlineStateObserver(
+        child: RoomsPage(),
+      ),
+    );
+```
+
+### UserOnlineStatusWidget
+
+This server widget to get the status of a specific user. It can be used, for example, to animate a user's avatar with an LED to indicate their online/offline status.
+
+```dart
+@override
+Widget build(BuildContext context) {
+  return UserOnlineStatusWidget(
+      uid: user.id,
+      builder: (status) {
+        //Use status == UserOnlineStatus.online to animate your avatar
+      },
+  );
+}
+```
+
 ## RLS (Row level security)
 
 The preparation script automatically configures the security rules on the database tables and storage buckets, below is a summary of the rules that are applied:
@@ -209,22 +244,24 @@ Licensed under the [Apache License, Version 2.0](LICENSE)
 
 Below are the features implemented for each platform:
 
-| Feature               | Web | Android | iOS | Windows | macOS | Linux |
-|-----------------------|:---:|:-------:|:---:|:-------:|:-----:|:-----:|
-| Signup                |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| SignIn                |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Rooms list screen     |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Create direct room    |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Create group room     | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
-| Create channel room   | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
-| Chat screen           |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Search room           | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
-| Search message        | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
-| Search user           | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
-| Upload image          |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Preview image message |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Upload file           |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Download file         |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Feature                  | Web | Android | iOS | Windows | macOS | Linux |
+|--------------------------|:---:|:-------:|:---:|:-------:|:-----:|:-----:|
+| Signup                   |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| SignIn                   |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Rooms list screen        |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Create direct room       |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Create group room        | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Create channel room      | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Chat screen              |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Search room              | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Search message           | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Search user              | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Upload image             |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Preview image message    |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Upload file              |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Download file            |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Users online status      |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Chat messages pagination |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 
 - ✅ Tested
 - 🟡 Supported but not tested
@@ -235,9 +272,8 @@ Below are the features implemented for each platform:
 Below are some activities to complete to have a more complete and optimized project also for use cases in larger projects.
 
 1. Add the missing triggers
-2. Optimization of the join of users who are part of a chat room. At the moment every time you want to get a chat room a SELECT is performed to get the users of the chat room. It does not perform as the chat rooms or users present in them grow.
-3. Error handling
-4. Chat room groups
-5. Chat room channels
-6. Sending audio messages
-7. Improve documentation
+2. Error handling
+3. Chat room groups
+4. Chat room channels
+5. Sending audio messages
+6. Improve documentation

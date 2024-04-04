@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../util.dart';
 import 'supabase_chat_core_config.dart';
-import 'util.dart';
+import 'user_online_status.dart';
 
 /// Provides access to Supabase chat data. Singleton, use
 /// SupabaseChatCore.instance to access methods.
@@ -10,6 +13,9 @@ class SupabaseChatCore {
   SupabaseChatCore._privateConstructor() {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       supabaseUser = data.session?.user;
+      _currentUserOnlineStatusChannel = supabaseUser != null
+          ? getUserOnlineStatusChannel(supabaseUser!.id)
+          : null;
     });
   }
 
@@ -20,11 +26,57 @@ class SupabaseChatCore {
     'rooms',
     'messages',
     'users',
+    'online-user-',
   );
 
   /// Current logged in user in Supabase. Does not update automatically.
   /// Use [Supabase.instance.client.auth.onAuthStateChange] to listen to the state changes.
   User? supabaseUser = Supabase.instance.client.auth.currentUser;
+
+  /// Returns user online status realtime channel .
+  RealtimeChannel getUserOnlineStatusChannel(String uid) =>
+      client.channel('${config.realtimeOnlineUserPrefixChannel}$uid');
+
+  /// Returns a current user online status realtime channel .
+  RealtimeChannel? _currentUserOnlineStatusChannel;
+
+  bool _userStatusSubscribed = false;
+  bool _userStatusSubscribing = false;
+
+  Future<void> _trackUserStatus() async {
+    final userStatus = {
+      'uid': supabaseUser?.id,
+      'online_at': DateTime.now().toIso8601String(),
+    };
+    await _currentUserOnlineStatusChannel?.track(userStatus);
+  }
+
+  Future<void> setPresenceStatus(UserOnlineStatus status) async {
+    if (!_userStatusSubscribed && !_userStatusSubscribing) {
+      _userStatusSubscribing = true;
+      _currentUserOnlineStatusChannel?.subscribe(
+        (status, error) async {
+          if (status != RealtimeSubscribeStatus.subscribed) return;
+          _userStatusSubscribed = true;
+          _userStatusSubscribing = false;
+          await _trackUserStatus();
+        },
+      );
+    }
+
+    switch (status) {
+      case UserOnlineStatus.online:
+        if (_userStatusSubscribed) {
+          await _trackUserStatus();
+        }
+        break;
+      case UserOnlineStatus.offline:
+        if (_userStatusSubscribed) {
+          await _currentUserOnlineStatusChannel?.untrack();
+        }
+        break;
+    }
+  }
 
   /// Singleton instance.
   static final SupabaseChatCore instance =
@@ -187,41 +239,13 @@ class SupabaseChatCore {
   }
 
   /// Returns a stream of messages from Supabase for a given room.
-  Stream<List<types.Message>> messages(
-    types.Room room, {
-    List<Object?>? endAt,
-    List<Object?>? endBefore,
-    int? limit,
-    List<Object?>? startAfter,
-    List<Object?>? startAt,
-  }) {
+  Stream<List<types.Message>> messages(types.Room room) {
     final query = client
         .schema(config.schema)
         .from(config.messagesTableName)
         .stream(primaryKey: ['id'])
         .eq('roomId', int.parse(room.id))
         .order('createdAt', ascending: false);
-/*
-    if (endAt != null) {
-      query = query.endAt(endAt);
-    }
-
-    if (endBefore != null) {
-      query = query.endBefore(endBefore);
-    }
-
-    if (limit != null) {
-      query = query.limit(limit);
-    }
-
-    if (startAfter != null) {
-      query = query.startAfter(startAfter);
-    }
-
-    if (startAt != null) {
-      query = query.startAt(startAt);
-    }
- */
     return query.map(
       (snapshot) => snapshot.fold<List<types.Message>>(
         [],
@@ -267,6 +291,21 @@ class SupabaseChatCore {
         );
   }
 
+  /// Returns a stream of online user state from Supabase Realtime.
+  Stream<UserOnlineStatus> userOnlineStatus(String uid) {
+    final controller = StreamController<UserOnlineStatus>();
+    UserOnlineStatus userStatus(List<Presence> presences, String uid) =>
+        presences.map((e) => e.payload['uid']).contains(uid)
+            ? UserOnlineStatus.online
+            : UserOnlineStatus.offline;
+    getUserOnlineStatusChannel(uid).onPresenceJoin((payload) {
+      controller.sink.add(userStatus(payload.newPresences, uid));
+    }).onPresenceLeave((payload) {
+      controller.sink.add(userStatus(payload.currentPresences, uid));
+    }).subscribe();
+    return controller.stream;
+  }
+
   /// Returns a stream of rooms from Supabase. Only rooms where current
   /// logged in user exist are returned. [orderByUpdatedAt] is used in case
   /// you want to have last modified rooms on top, there are a couple
@@ -280,40 +319,55 @@ class SupabaseChatCore {
   Stream<List<types.Room>> rooms({bool orderByUpdatedAt = true}) {
     final fu = supabaseUser;
     if (fu == null) return const Stream.empty();
+    final controller = StreamController<List<types.Room>>();
+    final roomsList = <types.Room>[];
+
+    Future<void> onData(List<Map<String, dynamic>> data) async {
+      for (var val in data) {
+        final newRoom = await processRoomRow(
+          val,
+          fu,
+          client,
+          config.usersTableName,
+          config.schema,
+        );
+        final index = roomsList.indexWhere((room) => room.id == newRoom.id);
+        if (index != -1) {
+          roomsList[index] = newRoom;
+        } else {
+          roomsList.add(newRoom);
+        }
+      }
+      if (orderByUpdatedAt) {
+        roomsList.sort(
+          (a, b) => a.createdAt?.compareTo(b.createdAt ?? 0) ?? -1,
+        );
+      }
+      controller.sink.add(roomsList);
+    }
 
     final collection = orderByUpdatedAt
         ? client
             .schema(config.schema)
             .from(config.roomsTableName)
-            .stream(primaryKey: ['id']).order('updatedAt', ascending: false)
-        : client
-            .schema(config.schema)
-            .from(config.roomsTableName)
-            .stream(primaryKey: ['id']);
+            .select()
+            .order('updatedAt', ascending: false)
+        : client.schema(config.schema).from(config.roomsTableName).select();
 
-    return collection.asyncMap<List<types.Room>>(
-      (snapshot) async {
-        final roomsById = <String, types.Room>{};
-
-        for (var data in snapshot) {
-          final room = await processRoomRow(
-            data,
-            fu,
-            client,
-            config.usersTableName,
-            config.schema,
-          );
-          roomsById.remove(room.id);
-          roomsById[room.id] = room;
-        }
-
-        return roomsById.values.toList();
-      },
-    );
+    collection.then(onData);
+    client
+        .channel('${config.schema}:${config.roomsTableName}')
+        .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: config.schema,
+            table: config.roomsTableName,
+            callback: (payload) => onData([payload.newRecord]))
+        .subscribe();
+    return controller.stream;
   }
 
   /// Sends a message to the Supabase. Accepts any partial message and a
-  /// room ID. If arbitraty data is provided in the [partialMessage]
+  /// room ID. If arbitrary data is provided in the [partialMessage]
   /// does nothing.
   void sendMessage(dynamic partialMessage, String roomId) async {
     if (supabaseUser == null) return;

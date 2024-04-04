@@ -1,3 +1,22 @@
+## [0.10.0] - 2024-04-04
+#### [@rickypid](https://github.com/rickypid)
+
+### Features
+
+* Added user online status support
+* Added room messages pagination, now it's possible load messages on chat scrolling
+* Added `SupabaseChatController`
+
+### Widgets
+
+* Added `UserOnlineStateObserver` widget
+* Added `UserOnlineStatusWidget` widget
+
+### Dependencies
+
+* Removed `dio` dependency
+* Upgraded `supabase_flutter` to `^2.4.0`
+
 ## [0.9.0] - 2024-03-11
 #### [@rickypid](https://github.com/rickypid)
 

@@ -26,7 +26,14 @@ class ChatPage extends StatefulWidget {
 
 class _ChatPageState extends State<ChatPage> {
   bool _isAttachmentUploading = false;
+  late SupabaseChatController _chatController;
   final String buket = 'chats_assets';
+
+  @override
+  void initState() {
+    _chatController = SupabaseChatController(room: widget.room);
+    super.initState();
+  }
 
   void _handleAttachmentPressed() {
     showModalBottomSheet<void>(
@@ -191,35 +198,32 @@ class _ChatPageState extends State<ChatPage> {
           systemOverlayStyle: SystemUiOverlayStyle.light,
           title: const Text('Chat'),
         ),
-        body: StreamBuilder<types.Room>(
-          initialData: widget.room,
-          stream: SupabaseChatCore.instance.room(widget.room.id),
-          builder: (context, snapshot) => StreamBuilder<List<types.Message>>(
-            initialData: const [],
-            stream: SupabaseChatCore.instance.messages(snapshot.data!),
-            builder: (context, snapshot) => Chat(
-              showUserNames: true,
-              showUserAvatars: true,
-              isAttachmentUploading: _isAttachmentUploading,
-              messages: snapshot.data ?? [],
-              onAttachmentPressed: _handleAttachmentPressed,
-              onMessageTap: _handleMessageTap,
-              onPreviewDataFetched: _handlePreviewDataFetched,
-              onSendPressed: _handleSendPressed,
-              user: types.User(
-                id: SupabaseChatCore.instance.supabaseUser?.id ?? '',
-              ),
-              imageHeaders: storageHeaders,
-              onMessageVisibilityChanged: (message, visible) async {
-                if (message.status != types.Status.seen &&
-                    message.author.id !=
-                        SupabaseChatCore.instance.supabaseUser?.id) {
-                  await SupabaseChatCore.instance.updateMessage(
-                      message.copyWith(status: types.Status.seen),
-                      widget.room.id);
-                }
-              },
+        body: StreamBuilder<List<types.Message>>(
+          initialData: const [],
+          stream: _chatController.messages,
+          builder: (context, snapshot) => Chat(
+            showUserNames: true,
+            showUserAvatars: true,
+            isAttachmentUploading: _isAttachmentUploading,
+            messages: snapshot.data ?? [],
+            onAttachmentPressed: _handleAttachmentPressed,
+            onMessageTap: _handleMessageTap,
+            onPreviewDataFetched: _handlePreviewDataFetched,
+            onSendPressed: _handleSendPressed,
+            user: types.User(
+              id: SupabaseChatCore.instance.supabaseUser!.id,
             ),
+            imageHeaders: storageHeaders,
+            onMessageVisibilityChanged: (message, visible) async {
+              if (message.status != types.Status.seen &&
+                  message.author.id !=
+                      SupabaseChatCore.instance.supabaseUser!.id) {
+                await SupabaseChatCore.instance.updateMessage(
+                    message.copyWith(status: types.Status.seen),
+                    widget.room.id);
+              }
+            },
+            onEndReached: _chatController.loadPreviousMessages,
           ),
         ),
       );
