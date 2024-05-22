@@ -185,6 +185,16 @@ Widget build(BuildContext context) {
 }
 ```
 
+## Listing for Message Events
+
+Messages that are sent have corresponding `pg_notify` events that are triggered on the `chat_push_notification` channel. This can be listened to by a worker (ie a Supabase Edge Function) to perform a task, like sending a push notification.
+
+Using a PostgreSQL client like `psql`, you can listen for all message events by using:
+
+```
+LISTEN chat_push_notification;
+```
+
 ## RLS (Row level security)
 
 The preparation script automatically configures the security rules on the database tables and storage buckets, below is a summary of the rules that are applied:
