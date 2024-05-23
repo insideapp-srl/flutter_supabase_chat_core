@@ -74,7 +74,8 @@ BEGIN
                 json_build_object(
                     'text', NEW.text,
                     'author_id', NEW."authorId",
-                    'user_id', user_record.id
+                    'user_id', user_record.id,
+                    'room_id', NEW."roomId"
                 )::text);
         END IF;
     END LOOP;
