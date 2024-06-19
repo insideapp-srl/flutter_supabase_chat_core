@@ -1,15 +1,12 @@
 name: Flutter analyze
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  pull_request_target:
+    branches: [main, dev]
 
 jobs:
   flutter-analyze:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v2
 
