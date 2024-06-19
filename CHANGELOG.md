@@ -1,3 +1,11 @@
+## [1.0.0] - 2024-06-19
+#### [@rickypid](https://github.com/rickypid)
+
+### Fixed
+
+* Fixed schema migration (#3)
+* Fixed example theme variables, now support Flutter > 3.22.x
+
 ## [0.10.0] - 2024-04-04
 #### [@rickypid](https://github.com/rickypid)
 
