@@ -7,9 +7,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: doc
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -21,9 +18,14 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+        working-directory: doc
 
       - name: Build site
         run: npm run build
+        working-directory: doc
+
+      - name: Add CNAME file
+        run: cp ./CNAME ./doc/build/CNAME
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
