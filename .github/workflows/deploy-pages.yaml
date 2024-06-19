@@ -23,8 +23,9 @@ jobs:
       - name: Build site
         run: npm run build
         working-directory: doc
+
       - name: Add CNAME file
-        run: cp ../CNAME ./doc/build/CNAME
+        run: cp ./CNAME ./doc/build/CNAME
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
