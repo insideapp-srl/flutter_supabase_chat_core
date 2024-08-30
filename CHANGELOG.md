@@ -1,3 +1,10 @@
+## [1.0.1] - 2024-08-30
+#### [@rickypid](https://github.com/rickypid)
+
+### Fixed
+
+* Fixed update room call
+
 ## [1.0.0] - 2024-06-19
 #### [@rickypid](https://github.com/rickypid)
 
