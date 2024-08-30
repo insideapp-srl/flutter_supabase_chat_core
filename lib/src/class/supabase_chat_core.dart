@@ -13,7 +13,9 @@ class SupabaseChatCore {
   SupabaseChatCore._privateConstructor() {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) {
       supabaseUser = data.session?.user;
-      _currentUserOnlineStatusChannel = supabaseUser != null ? getUserOnlineStatusChannel(supabaseUser!.id) : null;
+      _currentUserOnlineStatusChannel = supabaseUser != null
+          ? getUserOnlineStatusChannel(supabaseUser!.id)
+          : null;
     });
   }
 
@@ -32,7 +34,8 @@ class SupabaseChatCore {
   User? supabaseUser = Supabase.instance.client.auth.currentUser;
 
   /// Returns user online status realtime channel .
-  RealtimeChannel getUserOnlineStatusChannel(String uid) => client.channel('${config.realtimeOnlineUserPrefixChannel}$uid');
+  RealtimeChannel getUserOnlineStatusChannel(String uid) =>
+      client.channel('${config.realtimeOnlineUserPrefixChannel}$uid');
 
   /// Returns a current user online status realtime channel .
   RealtimeChannel? _currentUserOnlineStatusChannel;
@@ -76,7 +79,8 @@ class SupabaseChatCore {
   }
 
   /// Singleton instance.
-  static final SupabaseChatCore instance = SupabaseChatCore._privateConstructor();
+  static final SupabaseChatCore instance =
+      SupabaseChatCore._privateConstructor();
 
   /// Gets proper [SupabaseClient] instance.
   SupabaseClient get client => Supabase.instance.client;
@@ -110,7 +114,8 @@ class SupabaseChatCore {
 
     final roomUsers = [types.User.fromJson(currentUser)] + users;
 
-    final room = await client.schema(config.schema).from(config.roomsTableName).insert({
+    final room =
+        await client.schema(config.schema).from(config.roomsTableName).insert({
       'createdAt': DateTime.now().millisecondsSinceEpoch,
       'imageUrl': imageUrl,
       'metadata': metadata,
@@ -151,7 +156,13 @@ class SupabaseChatCore {
     // this will make it easy to find the room if exist and make one read only.
     final userIds = [su.id, otherUser.id]..sort();
 
-    final roomQuery = await client.schema(config.schema).from(config.roomsTableName).select().eq('type', types.RoomType.direct.toShortString()).eq('userIds', userIds).limit(1);
+    final roomQuery = await client
+        .schema(config.schema)
+        .from(config.roomsTableName)
+        .select()
+        .eq('type', types.RoomType.direct.toShortString())
+        .eq('userIds', userIds)
+        .limit(1);
     // Check if room already exist.
     if (roomQuery.isNotEmpty) {
       final room = (await processRoomsRows(
@@ -176,7 +187,8 @@ class SupabaseChatCore {
     final users = [types.User.fromJson(currentUser), otherUser];
 
     // Create new room with sorted user ids array.
-    final room = await client.schema(config.schema).from(config.roomsTableName).insert({
+    final room =
+        await client.schema(config.schema).from(config.roomsTableName).insert({
       'createdAt': DateTime.now().millisecondsSinceEpoch,
       'imageUrl': null,
       'metadata': metadata,
@@ -209,17 +221,31 @@ class SupabaseChatCore {
 
   /// Removes message.
   Future<void> deleteMessage(String roomId, String messageId) async {
-    await client.schema(config.schema).from(config.messagesTableName).delete().eq('roomId', roomId).eq('id', messageId);
+    await client
+        .schema(config.schema)
+        .from(config.messagesTableName)
+        .delete()
+        .eq('roomId', roomId)
+        .eq('id', messageId);
   }
 
   /// Removes room.
   Future<void> deleteRoom(String roomId) async {
-    await client.schema(config.schema).from(config.roomsTableName).delete().eq('id', roomId);
+    await client
+        .schema(config.schema)
+        .from(config.roomsTableName)
+        .delete()
+        .eq('id', roomId);
   }
 
   /// Returns a stream of messages from Supabase for a given room.
   Stream<List<types.Message>> messages(types.Room room) {
-    final query = client.schema(config.schema).from(config.messagesTableName).stream(primaryKey: ['id']).eq('roomId', int.parse(room.id)).order('createdAt', ascending: false);
+    final query = client
+        .schema(config.schema)
+        .from(config.messagesTableName)
+        .stream(primaryKey: ['id'])
+        .eq('roomId', int.parse(room.id))
+        .order('createdAt', ascending: false);
     return query.map(
       (snapshot) => snapshot.fold<List<types.Message>>(
         [],
@@ -232,7 +258,8 @@ class SupabaseChatCore {
           data['id'] = data['id'].toString();
           data['roomId'] = data['roomId'].toString();
           final newMessage = types.Message.fromJson(data);
-          final index = previousMessages.indexWhere((msg) => msg.id == newMessage.id);
+          final index =
+              previousMessages.indexWhere((msg) => msg.id == newMessage.id);
           if (index != -1) {
             previousMessages[index] = newMessage;
           } else {
@@ -248,7 +275,12 @@ class SupabaseChatCore {
   Stream<types.Room> room(String roomId) {
     final fu = supabaseUser;
     if (fu == null) return const Stream.empty();
-    return client.schema(config.schema).from(config.roomsTableName).stream(primaryKey: ['id']).eq('id', roomId).asyncMap(
+    return client
+        .schema(config.schema)
+        .from(config.roomsTableName)
+        .stream(primaryKey: ['id'])
+        .eq('id', roomId)
+        .asyncMap(
           (doc) => processRoomRow(
             doc.first,
             fu,
@@ -262,7 +294,10 @@ class SupabaseChatCore {
   /// Returns a stream of online user state from Supabase Realtime.
   Stream<UserOnlineStatus> userOnlineStatus(String uid) {
     final controller = StreamController<UserOnlineStatus>();
-    UserOnlineStatus userStatus(List<Presence> presences, String uid) => presences.map((e) => e.payload['uid']).contains(uid) ? UserOnlineStatus.online : UserOnlineStatus.offline;
+    UserOnlineStatus userStatus(List<Presence> presences, String uid) =>
+        presences.map((e) => e.payload['uid']).contains(uid)
+            ? UserOnlineStatus.online
+            : UserOnlineStatus.offline;
     getUserOnlineStatusChannel(uid).onPresenceJoin((payload) {
       controller.sink.add(userStatus(payload.newPresences, uid));
     }).onPresenceLeave((payload) {
@@ -311,10 +346,23 @@ class SupabaseChatCore {
       controller.sink.add(roomsList);
     }
 
-    final collection = orderByUpdatedAt ? client.schema(config.schema).from(config.roomsTableName).select().order('updatedAt', ascending: false) : client.schema(config.schema).from(config.roomsTableName).select();
+    final collection = orderByUpdatedAt
+        ? client
+            .schema(config.schema)
+            .from(config.roomsTableName)
+            .select()
+            .order('updatedAt', ascending: false)
+        : client.schema(config.schema).from(config.roomsTableName).select();
 
     collection.then(onData);
-    client.channel('${config.schema}:${config.roomsTableName}').onPostgresChanges(event: PostgresChangeEvent.all, schema: config.schema, table: config.roomsTableName, callback: (payload) => onData([payload.newRecord])).subscribe();
+    client
+        .channel('${config.schema}:${config.roomsTableName}')
+        .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: config.schema,
+            table: config.roomsTableName,
+            callback: (payload) => onData([payload.newRecord]))
+        .subscribe();
     return controller.stream;
   }
 
@@ -360,9 +408,16 @@ class SupabaseChatCore {
       messageMap['createdAt'] = DateTime.now().millisecondsSinceEpoch;
       messageMap['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
 
-      await client.schema(config.schema).from(config.messagesTableName).insert(messageMap);
+      await client
+          .schema(config.schema)
+          .from(config.messagesTableName)
+          .insert(messageMap);
 
-      await client.schema(config.schema).from(config.roomsTableName).update({'updatedAt': DateTime.now().millisecondsSinceEpoch}).eq('id', roomId);
+      await client
+          .schema(config.schema)
+          .from(config.roomsTableName)
+          .update({'updatedAt': DateTime.now().millisecondsSinceEpoch}).eq(
+              'id', roomId);
     }
   }
 
@@ -379,7 +434,12 @@ class SupabaseChatCore {
     //messageMap['authorId'] = message.author.id;
     messageMap['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
 
-    await client.schema(config.schema).from(config.messagesTableName).update(messageMap).eq('roomId', roomId).eq('id', message.id);
+    await client
+        .schema(config.schema)
+        .from(config.messagesTableName)
+        .update(messageMap)
+        .eq('roomId', roomId)
+        .eq('id', message.id);
   }
 
   /// Updates a room in the Supabase. Accepts any room.
@@ -388,7 +448,11 @@ class SupabaseChatCore {
     if (supabaseUser == null) return;
 
     final roomMap = room.toJson();
-    roomMap.removeWhere((key, value) => key == 'createdAt' || key == 'id' || key == 'lastMessages' || key == 'users');
+    roomMap.removeWhere((key, value) =>
+        key == 'createdAt' ||
+        key == 'id' ||
+        key == 'lastMessages' ||
+        key == 'users');
 
     if (room.type == types.RoomType.direct) {
       roomMap['imageUrl'] = null;
@@ -398,7 +462,11 @@ class SupabaseChatCore {
     roomMap['lastMessages'] = room.lastMessages?.map((m) {
       final messageMap = m.toJson();
 
-      messageMap.removeWhere((key, value) => key == 'author' || key == 'createdAt' || key == 'id' || key == 'updatedAt');
+      messageMap.removeWhere((key, value) =>
+          key == 'author' ||
+          key == 'createdAt' ||
+          key == 'id' ||
+          key == 'updatedAt');
 
       messageMap['authorId'] = m.author.id;
 
@@ -407,13 +475,20 @@ class SupabaseChatCore {
     roomMap['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
     roomMap['userIds'] = room.users.map((u) => u.id).toList();
 
-    await client.schema(config.schema).from(config.roomsTableName).update(roomMap).eq('id', room.id);
+    await client
+        .schema(config.schema)
+        .from(config.roomsTableName)
+        .update(roomMap)
+        .eq('id', room.id);
   }
 
   /// Returns a stream of all users from Supabase.
   Stream<List<types.User>> users() {
     if (supabaseUser == null) return const Stream.empty();
-    return client.schema(config.schema).from(config.usersTableName).stream(primaryKey: ['id']).map(
+    return client
+        .schema(config.schema)
+        .from(config.usersTableName)
+        .stream(primaryKey: ['id']).map(
       (snapshot) => snapshot.fold<List<types.User>>(
         [],
         (previousValue, data) {
