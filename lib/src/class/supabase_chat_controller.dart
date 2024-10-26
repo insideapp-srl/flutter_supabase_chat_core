@@ -70,15 +70,16 @@ class SupabaseChatController {
     client
         .channel('${config.schema}:${config.messagesTableName}:${_room.id}')
         .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: config.schema,
-            table: config.messagesTableName,
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'roomId',
-              value: _room.id,
-            ),
-            callback: (payload) => _onData([payload.newRecord]),)
+          event: PostgresChangeEvent.all,
+          schema: config.schema,
+          table: config.messagesTableName,
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'roomId',
+            value: _room.id,
+          ),
+          callback: (payload) => _onData([payload.newRecord]),
+        )
         .subscribe();
     return _controller.stream;
   }
