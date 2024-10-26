@@ -472,7 +472,7 @@ class SupabaseChatCore {
 
       return messageMap;
     }).toList();
-    roomMap['updatedAt'] = DateTime.now();
+    roomMap['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
     roomMap['userIds'] = room.users.map((u) => u.id).toList();
 
     await client
