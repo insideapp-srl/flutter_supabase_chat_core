@@ -1,9 +1,12 @@
-## [1.0.1] - 2024-08-30
+## [1.1.0] - 2024-08-30
+#### [@danbeech](https://github.com/danbeech)
 #### [@rickypid](https://github.com/rickypid)
 
 ### Fixed
 
 * Fixed update room call
+* Fixed Dart SDK version for Flutter 3.22.x (#9)
+* Updated dependencies
 
 ## [1.0.0] - 2024-06-19
 #### [@rickypid](https://github.com/rickypid)

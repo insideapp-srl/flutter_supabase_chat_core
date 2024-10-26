@@ -78,7 +78,7 @@ class SupabaseChatController {
               column: 'roomId',
               value: _room.id,
             ),
-            callback: (payload) => _onData([payload.newRecord]))
+            callback: (payload) => _onData([payload.newRecord]),)
         .subscribe();
     return _controller.stream;
   }

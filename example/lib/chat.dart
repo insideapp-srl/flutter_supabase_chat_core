@@ -95,7 +95,7 @@ class _ChatPageState extends State<ChatPage> {
             .from(buket)
             .uploadBinary(
                 '${widget.room.id}/${const Uuid().v1()}-$name', bytes!,
-                fileOptions: FileOptions(contentType: mimeType));
+                fileOptions: FileOptions(contentType: mimeType),);
         final url =
             '${Supabase.instance.client.storage.url}/object/authenticated/$reference';
         final message = types.PartialFile(
@@ -130,7 +130,7 @@ class _ChatPageState extends State<ChatPage> {
         final reference = await Supabase.instance.client.storage
             .from(buket)
             .uploadBinary('${widget.room.id}/${const Uuid().v1()}-$name', bytes,
-                fileOptions: FileOptions(contentType: mimeType));
+                fileOptions: FileOptions(contentType: mimeType),);
         final url =
             '${Supabase.instance.client.storage.url}/object/authenticated/$reference';
         final message = types.PartialImage(
@@ -220,7 +220,7 @@ class _ChatPageState extends State<ChatPage> {
                       SupabaseChatCore.instance.supabaseUser!.id) {
                 await SupabaseChatCore.instance.updateMessage(
                     message.copyWith(status: types.Status.seen),
-                    widget.room.id);
+                    widget.room.id,);
               }
             },
             onEndReached: _chatController.loadPreviousMessages,

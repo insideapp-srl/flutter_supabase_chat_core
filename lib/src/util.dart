@@ -46,7 +46,7 @@ Future<List<types.Room>> processRoomsRows(
         usersCollectionName,
         schema,
       ),
-    ));
+    ),);
 
 /// Returns a [types.Room] created from Firebase document.
 Future<types.Room> processRoomRow(
