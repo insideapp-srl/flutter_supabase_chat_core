@@ -1,4 +1,4 @@
-library flutter_supabase_chat_core;
+library;
 
 export 'src/class/supabase_chat_controller.dart';
 export 'src/class/supabase_chat_core.dart';

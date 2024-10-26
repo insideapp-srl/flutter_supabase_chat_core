@@ -27,6 +27,7 @@ class SupabaseChatCore {
     'messages',
     'users',
     'online-user-',
+    'user-typing-',
   );
 
   /// Current logged in user in Supabase. Does not update automatically.
@@ -361,7 +362,7 @@ class SupabaseChatCore {
             event: PostgresChangeEvent.all,
             schema: config.schema,
             table: config.roomsTableName,
-            callback: (payload) => onData([payload.newRecord]))
+            callback: (payload) => onData([payload.newRecord]),)
         .subscribe();
     return controller.stream;
   }
@@ -417,7 +418,7 @@ class SupabaseChatCore {
           .schema(config.schema)
           .from(config.roomsTableName)
           .update({'updatedAt': DateTime.now().millisecondsSinceEpoch}).eq(
-              'id', roomId);
+              'id', roomId,);
     }
   }
 
@@ -452,7 +453,7 @@ class SupabaseChatCore {
         key == 'createdAt' ||
         key == 'id' ||
         key == 'lastMessages' ||
-        key == 'users');
+        key == 'users',);
 
     if (room.type == types.RoomType.direct) {
       roomMap['imageUrl'] = null;
@@ -466,7 +467,7 @@ class SupabaseChatCore {
           key == 'author' ||
           key == 'createdAt' ||
           key == 'id' ||
-          key == 'updatedAt');
+          key == 'updatedAt',);
 
       messageMap['authorId'] = m.author.id;
 

@@ -85,7 +85,6 @@ class _RoomsPageState extends State<RoomsPage> {
       );
     }
 
-    // Se `otherUser` non è null, la stanza è diretta e possiamo mostrare l'indicatore di stato online.
     return Container(
       margin: const EdgeInsets.only(right: 16),
       child: UserOnlineStatusWidget(
@@ -96,7 +95,7 @@ class _RoomsPageState extends State<RoomsPage> {
             child,
             if (status ==
                 UserOnlineStatus
-                    .online) // Assumendo che `status` indichi lo stato online
+                    .online)
               Container(
                 width: 10,
                 height: 10,
@@ -198,7 +197,7 @@ class _RoomsPageState extends State<RoomsPage> {
                       leading: _buildAvatar(room),
                       title: Text(room.name ?? ''),
                       subtitle: Text(
-                          '${timeago.format(DateTime.now().subtract(Duration(milliseconds: DateTime.now().millisecondsSinceEpoch - (room.updatedAt ?? 0))), locale: 'en_short')} ${room.lastMessages != null && room.lastMessages!.isNotEmpty && room.lastMessages!.first is types.TextMessage ? (room.lastMessages!.first as types.TextMessage).text : ''}'),
+                          '${timeago.format(DateTime.now().subtract(Duration(milliseconds: DateTime.now().millisecondsSinceEpoch - (room.updatedAt ?? 0))), locale: 'en_short')} ${room.lastMessages != null && room.lastMessages!.isNotEmpty && room.lastMessages!.first is types.TextMessage ? (room.lastMessages!.first as types.TextMessage).text : ''}',),
                       onTap: () {
                         Navigator.of(context).push(
                           MaterialPageRoute(

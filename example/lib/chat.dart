@@ -91,11 +91,12 @@ class _ChatPageState extends State<ChatPage> {
         final bytes = result.files.single.bytes;
         final name = result.files.single.name;
         final mimeType = lookupMimeType(name, headerBytes: bytes);
-        final reference = await Supabase.instance.client.storage
-            .from(buket)
-            .uploadBinary(
-                '${widget.room.id}/${const Uuid().v1()}-$name', bytes!,
-                fileOptions: FileOptions(contentType: mimeType));
+        final reference =
+            await Supabase.instance.client.storage.from(buket).uploadBinary(
+                  '${widget.room.id}/${const Uuid().v1()}-$name',
+                  bytes!,
+                  fileOptions: FileOptions(contentType: mimeType),
+                );
         final url =
             '${Supabase.instance.client.storage.url}/object/authenticated/$reference';
         final message = types.PartialFile(
@@ -127,10 +128,12 @@ class _ChatPageState extends State<ChatPage> {
       final name = result.name;
       final mimeType = lookupMimeType(name, headerBytes: bytes);
       try {
-        final reference = await Supabase.instance.client.storage
-            .from(buket)
-            .uploadBinary('${widget.room.id}/${const Uuid().v1()}-$name', bytes,
-                fileOptions: FileOptions(contentType: mimeType));
+        final reference =
+            await Supabase.instance.client.storage.from(buket).uploadBinary(
+                  '${widget.room.id}/${const Uuid().v1()}-$name',
+                  bytes,
+                  fileOptions: FileOptions(contentType: mimeType),
+                );
         final url =
             '${Supabase.instance.client.storage.url}/object/authenticated/$reference';
         final message = types.PartialImage(
@@ -204,6 +207,21 @@ class _ChatPageState extends State<ChatPage> {
           builder: (context, snapshot) => Chat(
             showUserNames: true,
             showUserAvatars: true,
+            theme: const DefaultChatTheme(
+              messageMaxWidth: 600
+            ),
+            /*
+            typingIndicatorOptions: TypingIndicatorOptions(
+              typingUsers: [
+                types.User(
+                 firstName: 'Cemas',
+                 lastName: 'Bot',
+                  id: SupabaseChatCore.instance.supabaseUser!.id,
+                ),
+              ],
+            ),
+
+             */
             isAttachmentUploading: _isAttachmentUploading,
             messages: snapshot.data ?? [],
             onAttachmentPressed: _handleAttachmentPressed,
@@ -219,11 +237,17 @@ class _ChatPageState extends State<ChatPage> {
                   message.author.id !=
                       SupabaseChatCore.instance.supabaseUser!.id) {
                 await SupabaseChatCore.instance.updateMessage(
-                    message.copyWith(status: types.Status.seen),
-                    widget.room.id);
+                  message.copyWith(status: types.Status.seen),
+                  widget.room.id,
+                );
               }
             },
             onEndReached: _chatController.loadPreviousMessages,
+            inputOptions: InputOptions(
+              onTextChanged: (text) {
+                print('text');
+              },
+            ),
           ),
         ),
       );
