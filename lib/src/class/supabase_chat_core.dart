@@ -358,10 +358,11 @@ class SupabaseChatCore {
     client
         .channel('${config.schema}:${config.roomsTableName}')
         .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: config.schema,
-            table: config.roomsTableName,
-            callback: (payload) => onData([payload.newRecord]))
+          event: PostgresChangeEvent.all,
+          schema: config.schema,
+          table: config.roomsTableName,
+          callback: (payload) => onData([payload.newRecord]),
+        )
         .subscribe();
     return controller.stream;
   }
@@ -417,7 +418,9 @@ class SupabaseChatCore {
           .schema(config.schema)
           .from(config.roomsTableName)
           .update({'updatedAt': DateTime.now().millisecondsSinceEpoch}).eq(
-              'id', roomId);
+        'id',
+        roomId,
+      );
     }
   }
 
@@ -448,11 +451,13 @@ class SupabaseChatCore {
     if (supabaseUser == null) return;
 
     final roomMap = room.toJson();
-    roomMap.removeWhere((key, value) =>
-        key == 'createdAt' ||
-        key == 'id' ||
-        key == 'lastMessages' ||
-        key == 'users');
+    roomMap.removeWhere(
+      (key, value) =>
+          key == 'createdAt' ||
+          key == 'id' ||
+          key == 'lastMessages' ||
+          key == 'users',
+    );
 
     if (room.type == types.RoomType.direct) {
       roomMap['imageUrl'] = null;
@@ -462,11 +467,13 @@ class SupabaseChatCore {
     roomMap['lastMessages'] = room.lastMessages?.map((m) {
       final messageMap = m.toJson();
 
-      messageMap.removeWhere((key, value) =>
-          key == 'author' ||
-          key == 'createdAt' ||
-          key == 'id' ||
-          key == 'updatedAt');
+      messageMap.removeWhere(
+        (key, value) =>
+            key == 'author' ||
+            key == 'createdAt' ||
+            key == 'id' ||
+            key == 'updatedAt',
+      );
 
       messageMap['authorId'] = m.author.id;
 
