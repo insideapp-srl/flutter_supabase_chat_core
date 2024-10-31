@@ -191,9 +191,9 @@ class SupabaseChatCore {
     final room =
         await client.schema(config.schema).from(config.roomsTableName).insert({
       'createdAt': DateTime.now().millisecondsSinceEpoch,
-      'imageUrl': otherUser.imageUrl,
+      'imageUrl': null,
       'metadata': metadata,
-      'name': otherUser.toString(),
+      'name': null,
       'type': types.RoomType.direct.toShortString(),
       'updatedAt': DateTime.now().millisecondsSinceEpoch,
       'userIds': userIds,
