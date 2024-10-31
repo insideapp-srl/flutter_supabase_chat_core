@@ -188,8 +188,9 @@ class _ChatPageState extends State<ChatPage> {
         .updateMessage(updatedMessage, widget.room.id);
   }
 
-  void _handleSendPressed(types.PartialText message) {
-    SupabaseChatCore.instance.sendMessage(
+  Future<void> _handleSendPressed(types.PartialText message) async {
+    await _chatController.endTyping();
+    await SupabaseChatCore.instance.sendMessage(
       message,
       widget.room.id,
     );
@@ -220,7 +221,7 @@ class _ChatPageState extends State<ChatPage> {
                 messageMaxWidth: 600,
               ),
               typingIndicatorOptions: TypingIndicatorOptions(
-                typingUsers: users.data??[],
+                typingUsers: users.data ?? [],
               ),
               isAttachmentUploading: _isAttachmentUploading,
               messages: messages.data ?? [],

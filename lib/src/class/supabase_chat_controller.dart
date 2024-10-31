@@ -147,6 +147,11 @@ class SupabaseChatController {
     }
   }
 
+  Future<void> endTyping() async{
+    _endTypingTimer?.cancel();
+    await _typingChannel.track(_typingInfo(false));
+  }
+
   Map<String, dynamic> _typingInfo(bool typing) => {
         'uid': SupabaseChatCore.instance.supabaseUser!.id,
         'timestamp': DateTime.now().toIso8601String(),

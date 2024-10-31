@@ -26,8 +26,8 @@ class SupabaseChatCore {
     'rooms',
     'messages',
     'users',
-    'online-user-', //online-user-${uid}
-    'chat-user-typing-', //chat-user-typing-${room_id}
+    'online-users',
+    'chat-users-typing-', //chat-user-typing-${room_id}
   );
 
   /// Current logged in user in Supabase. Does not update automatically.
@@ -36,7 +36,7 @@ class SupabaseChatCore {
 
   /// Returns user online status realtime channel .
   RealtimeChannel getUserOnlineStatusChannel(String uid) =>
-      client.channel('${config.realtimeOnlineUserPrefixChannel}$uid');
+      client.channel(config.realtimeOnlineUserPrefixChannel);
 
   /// Returns a current user online status realtime channel .
   RealtimeChannel? _currentUserOnlineStatusChannel;
