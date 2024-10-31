@@ -26,7 +26,6 @@ class _UserOnlineStateObserverState extends State<UserOnlineStateObserver>
     with WidgetsBindingObserver {
   @override
   void initState() {
-    super.initState();
     widgetsBinding.addObserver(this);
     super.initState();
   }
