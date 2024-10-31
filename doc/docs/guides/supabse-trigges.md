@@ -3,7 +3,7 @@ id: supabase-triggers
 title: Database Triggers
 ---
 
-This is an example of a triggers that sets room's `lastMessages` to the most recent message sent once recieved in Firestore.
+This is an example of a triggers that sets room's `lastMessages` to the most recent message sent once recieved in Supabase.
 
 ```sql
     CREATE OR REPLACE FUNCTION chats.update_last_messages()
