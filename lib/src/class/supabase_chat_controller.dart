@@ -49,7 +49,9 @@ class SupabaseChatController {
             .toList();
         typingUsers = _room.users
             .where(
-              (e) => users.contains(e.id) && e.id != SupabaseChatCore.instance.supabaseUser!.id,
+              (e) =>
+                  users.contains(e.id) &&
+                  e.id != SupabaseChatCore.instance.supabaseUser!.id,
             )
             .toList();
       }
@@ -147,7 +149,7 @@ class SupabaseChatController {
     }
   }
 
-  Future<void> endTyping() async{
+  Future<void> endTyping() async {
     _endTypingTimer?.cancel();
     await _typingChannel.track(_typingInfo(false));
   }

@@ -100,4 +100,3 @@ class _AuthScreenState extends State<AuthScreen> {
         initialAuthMode: AuthMode.signup,
       );
 }
-

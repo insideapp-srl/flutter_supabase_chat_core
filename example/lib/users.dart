@@ -35,7 +35,7 @@ class _UsersPageState extends State<UsersPage> {
     super.dispose();
   }
 
-  void _setFilters(String filter){
+  void _setFilters(String filter) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _filter = filter;
       if (mounted) {
@@ -44,6 +44,7 @@ class _UsersPageState extends State<UsersPage> {
       }
     });
   }
+
   Future<void> _fetchPage(int offset) async {
     try {
       final newItems = await SupabaseChatCore.instance
@@ -125,7 +126,7 @@ class _UsersPageState extends State<UsersPage> {
         body: Column(
           children: [
             TextField(
-              onChanged: (value) =>_setFilters(value),
+              onChanged: (value) => _setFilters(value),
             ),
             Expanded(
               child: PagedListView<int, types.User>(
