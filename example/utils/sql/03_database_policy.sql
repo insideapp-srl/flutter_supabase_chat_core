@@ -13,48 +13,48 @@ DROP POLICY IF EXISTS "chats.messages_grant_read" ON chats.messages;
 DROP POLICY IF EXISTS "chats.messages_grant_update" ON chats.messages;
 DROP POLICY IF EXISTS "chats.messages_grant_delete" ON chats.messages;
 
-DROP function if exists chats.is_auth;
 CREATE OR REPLACE FUNCTION chats.is_auth()
     RETURNS boolean
     LANGUAGE 'plpgsql'
     COST 100
     VOLATILE NOT LEAKPROOF SECURITY DEFINER
+    SET search_path = ''
 AS $BODY$
 BEGIN
   return auth.uid() IS NOT NULL;
 end;
 $BODY$;
 
-DROP function if exists chats.is_owner;
 CREATE OR REPLACE FUNCTION chats.is_owner(user_id uuid)
     RETURNS boolean
     LANGUAGE 'plpgsql'
     COST 100
     VOLATILE NOT LEAKPROOF SECURITY DEFINER
+    SET search_path = ''
 AS $BODY$
 BEGIN
   return auth.uid() = user_id;
 end;
 $BODY$;
 
-DROP function if exists chats.is_member;
 CREATE OR REPLACE FUNCTION chats.is_member(members uuid[])
     RETURNS boolean
     LANGUAGE 'plpgsql'
     COST 100
     VOLATILE NOT LEAKPROOF SECURITY DEFINER
+    SET search_path = ''
 AS $BODY$
 BEGIN
   return auth.uid() = ANY(members);
 end;
 $BODY$;
 
-DROP function if exists chats.is_chat_member;
 CREATE OR REPLACE FUNCTION chats.is_chat_member(room_id bigint)
     RETURNS boolean
     LANGUAGE 'plpgsql'
     COST 100
     VOLATILE NOT LEAKPROOF SECURITY DEFINER
+    SET search_path = ''
 AS $BODY$
 DECLARE
   members uuid[];

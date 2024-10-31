@@ -24,11 +24,11 @@ class _RoomsPageState extends State<RoomsPage> {
 
   @override
   void initState() {
-    initializeFlutterFire();
+    initializeSupabase();
     super.initState();
   }
 
-  void initializeFlutterFire() async {
+  void initializeSupabase() async {
     try {
       Supabase.instance.client.auth.onAuthStateChange.listen((data) {
         setState(() {

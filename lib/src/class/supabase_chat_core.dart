@@ -239,39 +239,6 @@ class SupabaseChatCore {
         .eq('id', roomId);
   }
 
-  /// Returns a stream of messages from Supabase for a given room.
-  Stream<List<types.Message>> messages(types.Room room) {
-    final query = client
-        .schema(config.schema)
-        .from(config.messagesTableName)
-        .stream(primaryKey: ['id'])
-        .eq('roomId', int.parse(room.id))
-        .order('createdAt', ascending: false);
-    return query.map(
-      (snapshot) => snapshot.fold<List<types.Message>>(
-        [],
-        (previousMessages, data) {
-          final author = room.users.firstWhere(
-            (u) => u.id == data['authorId'],
-            orElse: () => types.User(id: data['authorId'] as String),
-          );
-          data['author'] = author.toJson();
-          data['id'] = data['id'].toString();
-          data['roomId'] = data['roomId'].toString();
-          final newMessage = types.Message.fromJson(data);
-          final index =
-              previousMessages.indexWhere((msg) => msg.id == newMessage.id);
-          if (index != -1) {
-            previousMessages[index] = newMessage;
-          } else {
-            previousMessages.add(newMessage);
-          }
-          return previousMessages;
-        },
-      ),
-    );
-  }
-
   /// Returns a stream of changes in a room from Supabase.
   Stream<types.Room> room(String roomId) {
     final fu = supabaseUser;
@@ -359,10 +326,11 @@ class SupabaseChatCore {
     client
         .channel('${config.schema}:${config.roomsTableName}')
         .onPostgresChanges(
-            event: PostgresChangeEvent.all,
-            schema: config.schema,
-            table: config.roomsTableName,
-            callback: (payload) => onData([payload.newRecord]),)
+          event: PostgresChangeEvent.all,
+          schema: config.schema,
+          table: config.roomsTableName,
+          callback: (payload) => onData([payload.newRecord]),
+        )
         .subscribe();
     return controller.stream;
   }
@@ -370,7 +338,7 @@ class SupabaseChatCore {
   /// Sends a message to the Supabase. Accepts any partial message and a
   /// room ID. If arbitrary data is provided in the [partialMessage]
   /// does nothing.
-  void sendMessage(dynamic partialMessage, String roomId) async {
+  Future<void> sendMessage(dynamic partialMessage, String roomId) async {
     if (supabaseUser == null) return;
 
     types.Message? message;
@@ -418,7 +386,9 @@ class SupabaseChatCore {
           .schema(config.schema)
           .from(config.roomsTableName)
           .update({'updatedAt': DateTime.now().millisecondsSinceEpoch}).eq(
-              'id', roomId,);
+        'id',
+        roomId,
+      );
     }
   }
 
@@ -445,15 +415,17 @@ class SupabaseChatCore {
 
   /// Updates a room in the Supabase. Accepts any room.
   /// Room will probably be taken from the [rooms] stream.
-  void updateRoom(types.Room room) async {
+  Future<void> updateRoom(types.Room room) async {
     if (supabaseUser == null) return;
 
     final roomMap = room.toJson();
-    roomMap.removeWhere((key, value) =>
-        key == 'createdAt' ||
-        key == 'id' ||
-        key == 'lastMessages' ||
-        key == 'users',);
+    roomMap.removeWhere(
+      (key, value) =>
+          key == 'createdAt' ||
+          key == 'id' ||
+          key == 'lastMessages' ||
+          key == 'users',
+    );
 
     if (room.type == types.RoomType.direct) {
       roomMap['imageUrl'] = null;
@@ -463,11 +435,13 @@ class SupabaseChatCore {
     roomMap['lastMessages'] = room.lastMessages?.map((m) {
       final messageMap = m.toJson();
 
-      messageMap.removeWhere((key, value) =>
-          key == 'author' ||
-          key == 'createdAt' ||
-          key == 'id' ||
-          key == 'updatedAt',);
+      messageMap.removeWhere(
+        (key, value) =>
+            key == 'author' ||
+            key == 'createdAt' ||
+            key == 'id' ||
+            key == 'updatedAt',
+      );
 
       messageMap['authorId'] = m.author.id;
 
@@ -483,6 +457,7 @@ class SupabaseChatCore {
         .eq('id', room.id);
   }
 
+  /*
   /// Returns a stream of all users from Supabase.
   Stream<List<types.User>> users() {
     if (supabaseUser == null) return const Stream.empty();
@@ -498,5 +473,37 @@ class SupabaseChatCore {
         },
       ),
     );
+  }
+
+   */
+
+  /// Returns a paginated list of users from Supabase.
+  Future<List<types.User>> users({
+    String? filter,
+    int? offset = 0,
+    int? limit = 20,
+  }) async {
+    if (supabaseUser == null) return const [];
+    final table = client.schema(config.schema).from(config.usersTableName);
+
+    final queryUnlimited = filter != null && filter != ''
+        ? table.select().or(
+              'or(firstName.ilike.%$filter%,lastName.ilike.%$filter%)',
+            )
+        : table.select();
+    var query = queryUnlimited
+        .order('firstName', ascending: true)
+        .order('lastName', ascending: true);
+    if (offset != null && limit != null) {
+      query = query.range(offset, offset + limit);
+    } else if (limit != null) {
+      query = query.limit(limit);
+    }
+    final response = await query;
+    return response
+        .map(
+          (e) => types.User.fromJson(e),
+        )
+        .toList();
   }
 }

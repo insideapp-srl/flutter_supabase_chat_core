@@ -106,7 +106,7 @@ class _ChatPageState extends State<ChatPage> {
           uri: url,
         );
 
-        SupabaseChatCore.instance.sendMessage(message, widget.room.id);
+        await SupabaseChatCore.instance.sendMessage(message, widget.room.id);
         _setAttachmentUploading(false);
       } finally {
         _setAttachmentUploading(false);
@@ -143,7 +143,7 @@ class _ChatPageState extends State<ChatPage> {
           uri: url,
           width: image.width.toDouble(),
         );
-        SupabaseChatCore.instance.sendMessage(
+        await SupabaseChatCore.instance.sendMessage(
           message,
           widget.room.id,
         );
@@ -208,9 +208,9 @@ class _ChatPageState extends State<ChatPage> {
             showUserNames: true,
             showUserAvatars: true,
             theme: const DefaultChatTheme(
-              messageMaxWidth: 600
+              messageMaxWidth: 600,
             ),
-            /*
+
             typingIndicatorOptions: TypingIndicatorOptions(
               typingUsers: [
                 types.User(
@@ -221,7 +221,7 @@ class _ChatPageState extends State<ChatPage> {
               ],
             ),
 
-             */
+
             isAttachmentUploading: _isAttachmentUploading,
             messages: snapshot.data ?? [],
             onAttachmentPressed: _handleAttachmentPressed,
@@ -244,6 +244,7 @@ class _ChatPageState extends State<ChatPage> {
             },
             onEndReached: _chatController.loadPreviousMessages,
             inputOptions: InputOptions(
+              enabled: true,
               onTextChanged: (text) {
                 print('text');
               },
