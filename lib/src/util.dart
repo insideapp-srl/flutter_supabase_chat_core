@@ -38,15 +38,17 @@ Future<List<types.Room>> processRoomsRows(
   String usersCollectionName,
   String schema,
 ) async =>
-    await Future.wait(rows.map(
-      (doc) => processRoomRow(
-        doc,
-        supabaseUser,
-        instance,
-        usersCollectionName,
-        schema,
+    await Future.wait(
+      rows.map(
+        (doc) => processRoomRow(
+          doc,
+          supabaseUser,
+          instance,
+          usersCollectionName,
+          schema,
+        ),
       ),
-    ),);
+    );
 
 /// Returns a [types.Room] created from Firebase document.
 Future<types.Room> processRoomRow(
