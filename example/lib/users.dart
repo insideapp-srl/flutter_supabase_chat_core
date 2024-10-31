@@ -2,12 +2,64 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
+import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 import 'chat.dart';
 import 'util.dart';
 
-class UsersPage extends StatelessWidget {
+class UsersPage extends StatefulWidget {
   const UsersPage({super.key});
+
+  @override
+  State<UsersPage> createState() => _UsersPageState();
+}
+
+class _UsersPageState extends State<UsersPage> {
+  static const _pageSize = 20;
+  String _filter = '';
+
+  final PagingController<int, types.User> _controller =
+      PagingController(firstPageKey: 0);
+
+  @override
+  void initState() {
+    _controller.addPageRequestListener((pageKey) {
+      _fetchPage(pageKey);
+    });
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _setFilters(String filter) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _filter = filter;
+      if (mounted) {
+        _controller.nextPageKey = 0;
+        _controller.refresh();
+      }
+    });
+  }
+
+  Future<void> _fetchPage(int offset) async {
+    try {
+      final newItems = await SupabaseChatCore.instance
+          .users(filter: _filter, offset: offset, limit: _pageSize);
+      final isLastPage = newItems.length < _pageSize;
+      if (isLastPage) {
+        _controller.appendLastPage(newItems);
+      } else {
+        final nextPageKey = offset + newItems.length;
+        _controller.appendPage(newItems, nextPageKey);
+      }
+    } catch (error) {
+      _controller.error = error;
+    }
+  }
 
   Widget _buildAvatar(types.User user) {
     final color = getUserAvatarNameColor(user);
@@ -71,33 +123,26 @@ class UsersPage extends StatelessWidget {
           systemOverlayStyle: SystemUiOverlayStyle.light,
           title: const Text('Users'),
         ),
-        body: StreamBuilder<List<types.User>>(
-          stream: SupabaseChatCore.instance.users(),
-          initialData: const [],
-          builder: (context, snapshot) {
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return Container(
-                alignment: Alignment.center,
-                margin: const EdgeInsets.only(
-                  bottom: 200,
+        body: Column(
+          children: [
+            TextField(
+              onChanged: (value) => _setFilters(value),
+            ),
+            Expanded(
+              child: PagedListView<int, types.User>(
+                pagingController: _controller,
+                builderDelegate: PagedChildBuilderDelegate<types.User>(
+                  itemBuilder: (context, user, index) => ListTile(
+                    leading: _buildAvatar(user),
+                    title: Text(getUserName(user)),
+                    onTap: () {
+                      _handlePressed(user, context);
+                    },
+                  ),
                 ),
-                child: const Text('No users'),
-              );
-            }
-            return ListView.builder(
-              itemCount: snapshot.data!.length,
-              itemBuilder: (context, index) {
-                final user = snapshot.data![index];
-                return ListTile(
-                  leading: _buildAvatar(user),
-                  title: Text(getUserName(user)),
-                  onTap: () {
-                    _handlePressed(user, context);
-                  },
-                );
-              },
-            );
-          },
+              ),
+            ),
+          ],
         ),
       );
 }

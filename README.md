@@ -255,13 +255,15 @@ Below are the features implemented for each platform:
 | Chat screen              |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 | Search room              | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
 | Search message           | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
-| Search user              | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Search user              |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 | Upload image             |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 | Preview image message    |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 | Upload file              |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 | Download file            |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 | Users online status      |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 | Chat messages pagination |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Users pagination         |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
+| Users typing status      |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 
 - ✅ Tested
 - 🟡 Supported but not tested

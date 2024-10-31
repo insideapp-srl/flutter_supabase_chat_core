@@ -35,6 +35,12 @@ class _ChatPageState extends State<ChatPage> {
     super.initState();
   }
 
+  @override
+  void dispose() {
+    _chatController.dispose();
+    super.dispose();
+  }
+
   void _handleAttachmentPressed() {
     showModalBottomSheet<void>(
       context: context,
@@ -106,7 +112,7 @@ class _ChatPageState extends State<ChatPage> {
           uri: url,
         );
 
-        SupabaseChatCore.instance.sendMessage(message, widget.room.id);
+        await SupabaseChatCore.instance.sendMessage(message, widget.room.id);
         _setAttachmentUploading(false);
       } finally {
         _setAttachmentUploading(false);
@@ -143,7 +149,7 @@ class _ChatPageState extends State<ChatPage> {
           uri: url,
           width: image.width.toDouble(),
         );
-        SupabaseChatCore.instance.sendMessage(
+        await SupabaseChatCore.instance.sendMessage(
           message,
           widget.room.id,
         );
@@ -182,8 +188,9 @@ class _ChatPageState extends State<ChatPage> {
         .updateMessage(updatedMessage, widget.room.id);
   }
 
-  void _handleSendPressed(types.PartialText message) {
-    SupabaseChatCore.instance.sendMessage(
+  Future<void> _handleSendPressed(types.PartialText message) async {
+    await _chatController.endTyping();
+    await SupabaseChatCore.instance.sendMessage(
       message,
       widget.room.id,
     );
@@ -204,30 +211,44 @@ class _ChatPageState extends State<ChatPage> {
         body: StreamBuilder<List<types.Message>>(
           initialData: const [],
           stream: _chatController.messages,
-          builder: (context, snapshot) => Chat(
-            showUserNames: true,
-            showUserAvatars: true,
-            isAttachmentUploading: _isAttachmentUploading,
-            messages: snapshot.data ?? [],
-            onAttachmentPressed: _handleAttachmentPressed,
-            onMessageTap: _handleMessageTap,
-            onPreviewDataFetched: _handlePreviewDataFetched,
-            onSendPressed: _handleSendPressed,
-            user: types.User(
-              id: SupabaseChatCore.instance.supabaseUser!.id,
+          builder: (context, messages) => StreamBuilder<List<types.User>>(
+            initialData: const [],
+            stream: _chatController.typingUsers,
+            builder: (context, users) => Chat(
+              showUserNames: true,
+              showUserAvatars: true,
+              theme: const DefaultChatTheme(
+                messageMaxWidth: 600,
+              ),
+              typingIndicatorOptions: TypingIndicatorOptions(
+                typingUsers: users.data ?? [],
+              ),
+              isAttachmentUploading: _isAttachmentUploading,
+              messages: messages.data ?? [],
+              onAttachmentPressed: _handleAttachmentPressed,
+              onMessageTap: _handleMessageTap,
+              onPreviewDataFetched: _handlePreviewDataFetched,
+              onSendPressed: _handleSendPressed,
+              user: types.User(
+                id: SupabaseChatCore.instance.supabaseUser!.id,
+              ),
+              imageHeaders: storageHeaders,
+              onMessageVisibilityChanged: (message, visible) async {
+                if (message.status != types.Status.seen &&
+                    message.author.id !=
+                        SupabaseChatCore.instance.supabaseUser!.id) {
+                  await SupabaseChatCore.instance.updateMessage(
+                    message.copyWith(status: types.Status.seen),
+                    widget.room.id,
+                  );
+                }
+              },
+              onEndReached: _chatController.loadPreviousMessages,
+              inputOptions: InputOptions(
+                enabled: true,
+                onTextChanged: (text) => _chatController.onTyping(),
+              ),
             ),
-            imageHeaders: storageHeaders,
-            onMessageVisibilityChanged: (message, visible) async {
-              if (message.status != types.Status.seen &&
-                  message.author.id !=
-                      SupabaseChatCore.instance.supabaseUser!.id) {
-                await SupabaseChatCore.instance.updateMessage(
-                  message.copyWith(status: types.Status.seen),
-                  widget.room.id,
-                );
-              }
-            },
-            onEndReached: _chatController.loadPreviousMessages,
           ),
         ),
       );

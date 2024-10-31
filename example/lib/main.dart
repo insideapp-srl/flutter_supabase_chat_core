@@ -12,7 +12,6 @@ void main() async {
     url: supabaseOptions.url,
     anonKey: supabaseOptions.anonKey,
   );
-
   runApp(const MyApp());
 }
 
@@ -23,7 +22,7 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-        title: 'Firebase Chat',
+        title: 'Supabase Chat',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           useMaterial3: true,

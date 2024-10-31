@@ -109,6 +109,9 @@ ALTER TABLE ONLY chats.messages
 ALTER TABLE ONLY chats.users
     ADD CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
+CREATE INDEX ON "chats"."messages" USING btree ("authorId");
+CREATE INDEX ON "chats"."messages" USING btree ("roomId");
+
 ALTER TABLE chats.messages ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE chats.rooms ENABLE ROW LEVEL SECURITY;

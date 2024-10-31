@@ -43,10 +43,5 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Firebase
-GoogleService-Info.plist
-google-services.json
-firebase_app_id_file.json
-
 /lib/supabase_options_for_test.dart
 /lib/main_test.dart

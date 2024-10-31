@@ -24,11 +24,11 @@ class _RoomsPageState extends State<RoomsPage> {
 
   @override
   void initState() {
-    initializeFlutterFire();
+    initializeSupabase();
     super.initState();
   }
 
-  void initializeFlutterFire() async {
+  void initializeSupabase() async {
     try {
       Supabase.instance.client.auth.onAuthStateChange.listen((data) {
         setState(() {
@@ -85,7 +85,6 @@ class _RoomsPageState extends State<RoomsPage> {
       );
     }
 
-    // Se `otherUser` non è null, la stanza è diretta e possiamo mostrare l'indicatore di stato online.
     return Container(
       margin: const EdgeInsets.only(right: 16),
       child: UserOnlineStatusWidget(
@@ -94,9 +93,7 @@ class _RoomsPageState extends State<RoomsPage> {
           alignment: Alignment.bottomRight,
           children: [
             child,
-            if (status ==
-                UserOnlineStatus
-                    .online) // Assumendo che `status` indichi lo stato online
+            if (status == UserOnlineStatus.online)
               Container(
                 width: 10,
                 height: 10,
