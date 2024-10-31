@@ -12,7 +12,12 @@ class SupabaseChatController {
   final List<types.Message> _messages = [];
   final int pageSize;
   int _currentPage = 0;
-  final _controller = StreamController<List<types.Message>>();
+  final _messagesController = StreamController<List<types.Message>>();
+  final _typingController = StreamController<List<types.User>>();
+  late RealtimeChannel _typingChannel;
+  bool _typingChannelSubscribed = false;
+  Timer? _throttleTimer;
+  Timer? _endTypingTimer;
 
   /// SupabaseChatController constructor
   /// [pageSize] define a pagination size
@@ -22,6 +27,38 @@ class SupabaseChatController {
     required types.Room room,
   }) {
     _room = room;
+    _typingChannel = client.channel(
+      '${config.realtimeChatTypingUserPrefixChannel}${_room.id}',
+      opts: RealtimeChannelConfig(
+        key: 'typing-state',
+      ),
+    );
+    _typingChannel.onPresenceSync((_) {
+      final newState = _typingChannel.presenceState();
+      var typingUsers = <types.User>[];
+      final keyIndex = newState.indexWhere(
+        (e) => e.key == 'typing-state',
+      );
+      if (keyIndex >= 0) {
+        final users = newState[keyIndex]
+            .presences
+            .where((e) => e.payload['typing'] == true)
+            .map(
+              (e) => e.payload['uid'].toString(),
+            )
+            .toList();
+        typingUsers = _room.users
+            .where(
+              (e) => users.contains(e.id) && e.id != SupabaseChatCore.instance.supabaseUser!.id,
+            )
+            .toList();
+      }
+      _typingController.sink.add(typingUsers);
+    }).subscribe(
+      (status, error) {
+        _typingChannelSubscribed = status == RealtimeSubscribeStatus.subscribed;
+      },
+    );
   }
 
   /// return a SupabaseClient instance
@@ -30,7 +67,7 @@ class SupabaseChatController {
   /// return a SupabaseChatCoreConfig instance
   SupabaseChatCoreConfig get config => SupabaseChatCore.instance.config;
 
-  PostgrestTransformBuilder _query() => client
+  PostgrestTransformBuilder _messagesQuery() => client
       .schema(config.schema)
       .from(config.messagesTableName)
       .select()
@@ -58,7 +95,7 @@ class SupabaseChatController {
     _messages.sort(
       (a, b) => b.createdAt?.compareTo(a.createdAt ?? 0) ?? -1,
     );
-    _controller.sink.add(_messages);
+    _messagesController.sink.add(_messages);
   }
 
   /// Returns a stream of messages from Supabase for a specified room.
@@ -66,7 +103,7 @@ class SupabaseChatController {
   /// then it will be necessary to call the [loadPreviousMessages] method to get
   /// the next page of messages
   Stream<List<types.Message>> get messages {
-    _query().then((value) => _onData(value));
+    _messagesQuery().then((value) => _onData(value));
     client
         .channel('${config.schema}:${config.messagesTableName}:${_room.id}')
         .onPostgresChanges(
@@ -81,13 +118,42 @@ class SupabaseChatController {
           callback: (payload) => _onData([payload.newRecord]),
         )
         .subscribe();
-    return _controller.stream;
+    return _messagesController.stream;
   }
 
   /// This method allows to receive on the stream [messages] the next
   /// page
   Future<void> loadPreviousMessages() async {
     _currentPage += 1;
-    await _query().then((value) => _onData(value));
+    await _messagesQuery().then((value) => _onData(value));
+  }
+
+  /// Returns a stream of typing users from Supabase for a specified room.
+  Stream<List<types.User>> get typingUsers => _typingController.stream;
+
+  void onTyping() async {
+    if (_typingChannelSubscribed &&
+        SupabaseChatCore.instance.supabaseUser != null) {
+      if (_throttleTimer?.isActive ?? false) return;
+      _throttleTimer = Timer(Duration(milliseconds: 500), () {});
+      _endTypingTimer?.cancel();
+      _endTypingTimer = Timer(
+        Duration(seconds: 3),
+        () async {
+          await _typingChannel.track(_typingInfo(false));
+        },
+      );
+      await _typingChannel.track(_typingInfo(true));
+    }
+  }
+
+  Map<String, dynamic> _typingInfo(bool typing) => {
+        'uid': SupabaseChatCore.instance.supabaseUser!.id,
+        'timestamp': DateTime.now().toIso8601String(),
+        'typing': typing,
+      };
+
+  void dispose() {
+    _typingChannel.untrack();
   }
 }

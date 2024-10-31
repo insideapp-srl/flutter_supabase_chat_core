@@ -1,3 +1,15 @@
+## [1.2.0] - 2024-10-31
+#### [@rickypid](https://github.com/rickypid)
+
+### New features
+
+* Added Users list pagination and searchable
+* Added Users typing status
+
+### Fixed
+
+* Fix database index e security fix on function
+ 
 ## [1.1.0] - 2024-08-30
 #### [@danbeech](https://github.com/danbeech)
 #### [@rickypid](https://github.com/rickypid)

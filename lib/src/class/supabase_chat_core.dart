@@ -26,8 +26,8 @@ class SupabaseChatCore {
     'rooms',
     'messages',
     'users',
-    'online-user-',
-    'user-typing-',
+    'online-user-', //online-user-${uid}
+    'chat-user-typing-', //chat-user-typing-${room_id}
   );
 
   /// Current logged in user in Supabase. Does not update automatically.
@@ -191,9 +191,9 @@ class SupabaseChatCore {
     final room =
         await client.schema(config.schema).from(config.roomsTableName).insert({
       'createdAt': DateTime.now().millisecondsSinceEpoch,
-      'imageUrl': null,
+      'imageUrl': otherUser.imageUrl,
       'metadata': metadata,
-      'name': null,
+      'name': otherUser.toString(),
       'type': types.RoomType.direct.toShortString(),
       'updatedAt': DateTime.now().millisecondsSinceEpoch,
       'userIds': userIds,
@@ -456,26 +456,6 @@ class SupabaseChatCore {
         .update(roomMap)
         .eq('id', room.id);
   }
-
-  /*
-  /// Returns a stream of all users from Supabase.
-  Stream<List<types.User>> users() {
-    if (supabaseUser == null) return const Stream.empty();
-    return client
-        .schema(config.schema)
-        .from(config.usersTableName)
-        .stream(primaryKey: ['id']).map(
-      (snapshot) => snapshot.fold<List<types.User>>(
-        [],
-        (previousValue, data) {
-          if (supabaseUser!.id == data['id']) return previousValue;
-          return [...previousValue, types.User.fromJson(data)];
-        },
-      ),
-    );
-  }
-
-   */
 
   /// Returns a paginated list of users from Supabase.
   Future<List<types.User>> users({
