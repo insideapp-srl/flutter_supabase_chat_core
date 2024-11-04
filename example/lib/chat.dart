@@ -160,13 +160,11 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-
-
   void _handleMessageTap(BuildContext _, types.Message message) async {
     if (message is types.FileMessage) {
       final client = http.Client();
-      final request =
-          await client.get(Uri.parse(message.uri), headers: SupabaseChatCore.instance.httpSupabaseHeaders);
+      final request = await client.get(Uri.parse(message.uri),
+          headers: SupabaseChatCore.instance.httpSupabaseHeaders);
       final result = await FileSaver.instance.saveFile(
         name: message.uri.split('/').last,
         bytes: request.bodyBytes,
