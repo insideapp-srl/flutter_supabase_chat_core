@@ -1,3 +1,12 @@
+## [1.3.0] - 2024-11-04
+#### [@rickypid](https://github.com/rickypid)
+
+⚠️⚠️ **Some Breaking Changes** ⚠️⚠️
+ 
+### New features
+
+* Added Rooms list pagination and searchable
+
 ## [1.2.0] - 2024-10-31
 #### [@rickypid](https://github.com/rickypid)
 

@@ -160,16 +160,13 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  Map<String, String> get storageHeaders => {
-        'Authorization':
-            'Bearer ${Supabase.instance.client.auth.currentSession?.accessToken}',
-      };
+
 
   void _handleMessageTap(BuildContext _, types.Message message) async {
     if (message is types.FileMessage) {
       final client = http.Client();
       final request =
-          await client.get(Uri.parse(message.uri), headers: storageHeaders);
+          await client.get(Uri.parse(message.uri), headers: SupabaseChatCore.instance.httpSupabaseHeaders);
       final result = await FileSaver.instance.saveFile(
         name: message.uri.split('/').last,
         bytes: request.bodyBytes,
@@ -230,13 +227,13 @@ class _ChatPageState extends State<ChatPage> {
               onPreviewDataFetched: _handlePreviewDataFetched,
               onSendPressed: _handleSendPressed,
               user: types.User(
-                id: SupabaseChatCore.instance.supabaseUser!.id,
+                id: SupabaseChatCore.instance.loggedSupabaseUser!.id,
               ),
-              imageHeaders: storageHeaders,
+              imageHeaders: SupabaseChatCore.instance.httpSupabaseHeaders,
               onMessageVisibilityChanged: (message, visible) async {
                 if (message.status != types.Status.seen &&
                     message.author.id !=
-                        SupabaseChatCore.instance.supabaseUser!.id) {
+                        SupabaseChatCore.instance.loggedSupabaseUser!.id) {
                   await SupabaseChatCore.instance.updateMessage(
                     message.copyWith(status: types.Status.seen),
                     widget.room.id,

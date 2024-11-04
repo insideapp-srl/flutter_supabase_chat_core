@@ -11,28 +11,47 @@ import 'user_online_status.dart';
 /// SupabaseChatCore.instance to access methods.
 class SupabaseChatCore {
   SupabaseChatCore._privateConstructor() {
-    Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-      supabaseUser = data.session?.user;
-      _currentUserOnlineStatusChannel = supabaseUser != null
-          ? getUserOnlineStatusChannel(supabaseUser!.id)
-          : null;
+    Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
+      if (loggedSupabaseUser != null) {
+        _loggedUser = await user(uid: loggedSupabaseUser!.id);
+        _currentUserOnlineStatusChannel =
+            getUserOnlineStatusChannel(loggedSupabaseUser!.id);
+      } else {
+        _loggedUser = null;
+        _currentUserOnlineStatusChannel = null;
+      }
     });
   }
+
+  /// Singleton instance.
+  static final SupabaseChatCore instance =
+      SupabaseChatCore._privateConstructor();
 
   /// Config to set custom names for users, room and messages tables. Also
   /// see [SupabaseChatCoreConfig].
   SupabaseChatCoreConfig config = const SupabaseChatCoreConfig(
     'chats',
     'rooms',
+    'rooms_l',
     'messages',
     'users',
     'online-user-', //online-user-${uid}
     'chat-user-typing-', //chat-user-typing-${room_id}
   );
 
-  /// Current logged in user in Supabase. Does not update automatically.
-  /// Use [Supabase.instance.client.auth.onAuthStateChange] to listen to the state changes.
-  User? supabaseUser = Supabase.instance.client.auth.currentUser;
+  /// Sets custom config to change default names for users, rooms
+  /// and messages tables. Also see [SupabaseChatCoreConfig].
+  void setConfig(SupabaseChatCoreConfig supabaseChatCoreConfig) {
+    config = supabaseChatCoreConfig;
+  }
+
+  /// Current logged in user in Supabase. Is update automatically.
+  User? get loggedSupabaseUser => Supabase.instance.client.auth.currentUser;
+
+  types.User? _loggedUser;
+
+  /// Current logged in user. Is update automatically.
+  types.User? get loggedUser => _loggedUser;
 
   /// Returns user online status realtime channel .
   RealtimeChannel getUserOnlineStatusChannel(String uid) =>
@@ -46,7 +65,7 @@ class SupabaseChatCore {
 
   Future<void> _trackUserStatus() async {
     final userStatus = {
-      'uid': supabaseUser?.id,
+      'uid': loggedSupabaseUser?.id,
       'online_at': DateTime.now().toIso8601String(),
     };
     await _currentUserOnlineStatusChannel?.track(userStatus);
@@ -79,18 +98,13 @@ class SupabaseChatCore {
     }
   }
 
-  /// Singleton instance.
-  static final SupabaseChatCore instance =
-      SupabaseChatCore._privateConstructor();
-
   /// Gets proper [SupabaseClient] instance.
   SupabaseClient get client => Supabase.instance.client;
 
-  /// Sets custom config to change default names for users, rooms
-  /// and messages tables. Also see [SupabaseChatCoreConfig].
-  void setConfig(SupabaseChatCoreConfig supabaseChatCoreConfig) {
-    config = supabaseChatCoreConfig;
-  }
+  /// Return header for authenticate api calls to Supabase
+  Map<String, String> get httpSupabaseHeaders => {
+        'Authorization': 'Bearer ${client.auth.currentSession?.accessToken}',
+      };
 
   /// Creates a chat group room with [users]. Creator is automatically
   /// added to the group. [name] is required and will be used as
@@ -103,11 +117,11 @@ class SupabaseChatCore {
     required String name,
     required List<types.User> users,
   }) async {
-    if (supabaseUser == null) return Future.error('User does not exist');
+    if (loggedSupabaseUser == null) return Future.error('User does not exist');
 
     final currentUser = await fetchUser(
       client,
-      supabaseUser!.id,
+      loggedSupabaseUser!.id,
       config.usersTableName,
       config.schema,
       role: creatorRole.toShortString(),
@@ -149,7 +163,7 @@ class SupabaseChatCore {
     types.User otherUser, {
     Map<String, dynamic>? metadata,
   }) async {
-    final su = supabaseUser;
+    final su = loggedSupabaseUser;
 
     if (su == null) return Future.error('User does not exist');
 
@@ -241,7 +255,7 @@ class SupabaseChatCore {
 
   /// Returns a stream of changes in a room from Supabase.
   Stream<types.Room> room(String roomId) {
-    final fu = supabaseUser;
+    final fu = loggedSupabaseUser;
     if (fu == null) return const Stream.empty();
     return client
         .schema(config.schema)
@@ -274,89 +288,71 @@ class SupabaseChatCore {
     return controller.stream;
   }
 
-  /// Returns a stream of rooms from Supabase. Only rooms where current
-  /// logged in user exist are returned. [orderByUpdatedAt] is used in case
-  /// you want to have last modified rooms on top.
-  Stream<List<types.Room>> rooms({bool orderByUpdatedAt = true}) {
-    final fu = supabaseUser;
-    if (fu == null) return const Stream.empty();
-    final controller = StreamController<List<types.Room>>();
-    final roomsList = <types.Room>[];
+  /// Returns a paginated list of rooms from Supabase. Only rooms where current
+  /// logged in user exist are returned.
+  Future<List<types.Room>> rooms({
+    String? filter,
+    int? offset = 0,
+    int? limit = 20,
+  }) async {
+    if (loggedSupabaseUser == null) return const [];
+    final table = client.schema(config.schema).from(config.roomsViewName);
 
-    Future<void> onData(List<Map<String, dynamic>> data) async {
-      for (var val in data) {
-        final newRoom = await processRoomRow(
-          val,
-          fu,
+    final queryUnlimited = filter != null && filter != ''
+        ? table.select().ilike('name', '%$filter%')
+        : table.select();
+    var query = queryUnlimited.order('updatedAt', ascending: true);
+    if (offset != null && limit != null) {
+      query = query.range(offset, offset + limit);
+    } else if (limit != null) {
+      query = query.limit(limit);
+    }
+    final response = await query;
+    final rooms = <types.Room>[];
+    for (var r in response) {
+      rooms.add(
+        await processRoomRow(
+          r,
+          loggedSupabaseUser!,
           client,
           config.usersTableName,
           config.schema,
-        );
-        final index = roomsList.indexWhere((room) => room.id == newRoom.id);
-        if (index != -1) {
-          roomsList[index] = newRoom;
-        } else {
-          roomsList.add(newRoom);
-        }
-      }
-      if (orderByUpdatedAt) {
-        roomsList.sort(
-          (a, b) => a.createdAt?.compareTo(b.createdAt ?? 0) ?? -1,
-        );
-      }
-      controller.sink.add(roomsList);
+        ),
+      );
     }
-
-    final collection = orderByUpdatedAt
-        ? client
-            .schema(config.schema)
-            .from(config.roomsTableName)
-            .select()
-            .order('updatedAt', ascending: false)
-        : client.schema(config.schema).from(config.roomsTableName).select();
-
-    collection.then(onData);
-    client
-        .channel('${config.schema}:${config.roomsTableName}')
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: config.schema,
-          table: config.roomsTableName,
-          callback: (payload) => onData([payload.newRecord]),
-        )
-        .subscribe();
-    return controller.stream;
+    print(rooms);
+    return rooms;
   }
 
   /// Sends a message to the Supabase. Accepts any partial message and a
   /// room ID. If arbitrary data is provided in the [partialMessage]
   /// does nothing.
   Future<void> sendMessage(dynamic partialMessage, String roomId) async {
-    if (supabaseUser == null) return;
+    if (loggedSupabaseUser == null) return;
 
     types.Message? message;
 
     if (partialMessage is types.PartialCustom) {
       message = types.CustomMessage.fromPartial(
-        author: types.User(id: supabaseUser!.id),
+        author: types.User(id: loggedSupabaseUser!.id),
         id: '',
         partialCustom: partialMessage,
       );
     } else if (partialMessage is types.PartialFile) {
       message = types.FileMessage.fromPartial(
-        author: types.User(id: supabaseUser!.id),
+        author: types.User(id: loggedSupabaseUser!.id),
         id: '',
         partialFile: partialMessage,
       );
     } else if (partialMessage is types.PartialImage) {
       message = types.ImageMessage.fromPartial(
-        author: types.User(id: supabaseUser!.id),
+        author: types.User(id: loggedSupabaseUser!.id),
         id: '',
         partialImage: partialMessage,
       );
     } else if (partialMessage is types.PartialText) {
       message = types.TextMessage.fromPartial(
-        author: types.User(id: supabaseUser!.id),
+        author: types.User(id: loggedSupabaseUser!.id),
         id: '',
         partialText: partialMessage,
       );
@@ -366,7 +362,7 @@ class SupabaseChatCore {
       final messageMap = message.toJson();
       messageMap.removeWhere((key, value) => key == 'author' || key == 'id');
       messageMap['roomId'] = roomId;
-      messageMap['authorId'] = supabaseUser!.id;
+      messageMap['authorId'] = loggedSupabaseUser!.id;
       messageMap['createdAt'] = DateTime.now().millisecondsSinceEpoch;
       messageMap['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
 
@@ -409,7 +405,7 @@ class SupabaseChatCore {
   /// Updates a room in the Supabase. Accepts any room.
   /// Room will probably be taken from the [rooms] stream.
   Future<void> updateRoom(types.Room room) async {
-    if (supabaseUser == null) return;
+    if (loggedSupabaseUser == null) return;
 
     final roomMap = room.toJson();
     roomMap.removeWhere(
@@ -456,7 +452,7 @@ class SupabaseChatCore {
     int? offset = 0,
     int? limit = 20,
   }) async {
-    if (supabaseUser == null) return const [];
+    if (loggedSupabaseUser == null) return const [];
     final table = client.schema(config.schema).from(config.usersTableName);
 
     final queryUnlimited = filter != null && filter != ''
@@ -478,5 +474,18 @@ class SupabaseChatCore {
           (e) => types.User.fromJson(e),
         )
         .toList();
+  }
+
+  /// Returns a user from Supabase.
+  Future<types.User?> user({
+    required String uid,
+  }) async {
+    final response = await client
+        .schema(config.schema)
+        .from(config.usersTableName)
+        .select()
+        .eq('id', uid)
+        .limit(1);
+    return response.isNotEmpty ? types.User.fromJson(response.first) : null;
   }
 }

@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:timeago/timeago.dart' as timeago;
+import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';import 'package:timeago/timeago.dart' as timeago;
 
-import 'auth.dart';
 import 'chat.dart';
-import 'users.dart';
 import 'util.dart';
 
 class RoomsPage extends StatefulWidget {
@@ -17,37 +13,51 @@ class RoomsPage extends StatefulWidget {
   State<RoomsPage> createState() => _RoomsPageState();
 }
 
-class _RoomsPageState extends State<RoomsPage> {
-  bool _error = false;
-  bool _initialized = false;
-  User? _user;
+class _RoomsPageState extends State<RoomsPage> {static const _pageSize = 20;
+String _filter = '';
 
-  @override
-  void initState() {
-    initializeSupabase();
-    super.initState();
-  }
+final PagingController<int, types.Room> _controller =
+PagingController(firstPageKey: 0);
 
-  void initializeSupabase() async {
-    try {
-      Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-        setState(() {
-          _user = data.session?.user;
-        });
-      });
-      setState(() {
-        _initialized = true;
-      });
-    } catch (e) {
-      setState(() {
-        _error = true;
-      });
+@override
+void initState() {
+  _controller.addPageRequestListener((pageKey) {
+    _fetchPage(pageKey);
+  });
+  super.initState();
+}
+
+@override
+void dispose() {
+  _controller.dispose();
+  super.dispose();
+}
+
+void _setFilters(String filter) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    _filter = filter;
+    if (mounted) {
+      _controller.nextPageKey = 0;
+      _controller.refresh();
     }
-  }
+  });
+}
 
-  void logout() async {
-    await Supabase.instance.client.auth.signOut();
+Future<void> _fetchPage(int offset) async {
+  try {
+    final newItems = await SupabaseChatCore.instance
+        .rooms(filter: _filter, offset: offset, limit: _pageSize);
+    final isLastPage = newItems.length < _pageSize;
+    if (isLastPage) {
+      _controller.appendLastPage(newItems);
+    } else {
+      final nextPageKey = offset + newItems.length;
+      _controller.appendPage(newItems, nextPageKey);
+    }
+  } catch (error) {
+    _controller.error = error;
   }
+}
 
   Widget _buildAvatar(types.Room room) {
     var color = Colors.transparent;
@@ -56,7 +66,7 @@ class _RoomsPageState extends State<RoomsPage> {
     if (room.type == types.RoomType.direct) {
       try {
         otherUser = room.users.firstWhere(
-          (u) => u.id != _user!.id,
+          (u) => u.id != SupabaseChatCore.instance.loggedSupabaseUser!.id,
         );
 
         color = getUserAvatarNameColor(otherUser);
@@ -114,103 +124,35 @@ class _RoomsPageState extends State<RoomsPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    if (_error) {
-      return Container();
-    }
-
-    if (!_initialized) {
-      return Container();
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.add,
-            ),
-            onPressed: _user == null
-                ? null
-                : () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        fullscreenDialog: true,
-                        builder: (context) => const UsersPage(),
-                      ),
-                    );
-                  },
-          ),
-        ],
-        leading: IconButton(
-          icon: const Icon(Icons.logout),
-          onPressed: _user == null ? null : logout,
-        ),
-        systemOverlayStyle: SystemUiOverlayStyle.light,
-        title: const Text('Rooms'),
+  Widget build(BuildContext context) => Column(
+    children: [
+      TextField(
+        onChanged: (value) => _setFilters(value),
       ),
-      body: _user == null
-          ? Container(
-              alignment: Alignment.center,
-              margin: const EdgeInsets.only(
-                bottom: 200,
+      Expanded(
+        child: PagedListView<int, types.Room>(
+          pagingController: _controller,
+          builderDelegate: PagedChildBuilderDelegate<types.Room>(
+            itemBuilder: (context, room, index) => ListTile(
+              key: ValueKey(room.id),
+              leading: _buildAvatar(room),
+              title: Text(room.name ?? ''),
+              subtitle: Text(
+                '${timeago.format(DateTime.now().subtract(Duration(milliseconds: DateTime.now().millisecondsSinceEpoch - (room.updatedAt ?? 0))), locale: 'en_short')} ${room.lastMessages != null && room.lastMessages!.isNotEmpty && room.lastMessages!.first is types.TextMessage ? (room.lastMessages!.first as types.TextMessage).text : ''}',
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text('Not authenticated'),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          fullscreenDialog: true,
-                          builder: (context) => const AuthScreen(),
-                        ),
-                      );
-                    },
-                    child: const Text('Login'),
-                  ),
-                ],
-              ),
-            )
-          : StreamBuilder<List<types.Room>>(
-              stream: SupabaseChatCore.instance.rooms(),
-              initialData: const [],
-              builder: (context, snapshot) {
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Container(
-                    alignment: Alignment.center,
-                    margin: const EdgeInsets.only(
-                      bottom: 200,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => ChatPage(
+                      room: room,
                     ),
-                    child: const Text('No rooms'),
-                  );
-                }
-                return ListView.builder(
-                  itemCount: snapshot.data!.length,
-                  itemBuilder: (context, index) {
-                    final room = snapshot.data![index];
-                    return ListTile(
-                      key: ValueKey(room.id),
-                      leading: _buildAvatar(room),
-                      title: Text(room.name ?? ''),
-                      subtitle: Text(
-                        '${timeago.format(DateTime.now().subtract(Duration(milliseconds: DateTime.now().millisecondsSinceEpoch - (room.updatedAt ?? 0))), locale: 'en_short')} ${room.lastMessages != null && room.lastMessages!.isNotEmpty && room.lastMessages!.first is types.TextMessage ? (room.lastMessages!.first as types.TextMessage).text : ''}',
-                      ),
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => ChatPage(
-                              room: room,
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
+                  ),
                 );
               },
             ),
-    );
-  }
+          ),
+        ),
+      ),
+    ],
+  );
 }

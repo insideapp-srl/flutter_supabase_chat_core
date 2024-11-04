@@ -3,6 +3,7 @@ import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'color_schemes.g.dart';
+import 'home.dart';
 import 'rooms.dart';
 import 'supabase_options.dart';
 
@@ -34,7 +35,7 @@ class MyApp extends StatelessWidget {
         ),
         themeMode: ThemeMode.dark,
         home: const UserOnlineStateObserver(
-          child: RoomsPage(),
+          child: HomePage(),
         ),
       );
 }

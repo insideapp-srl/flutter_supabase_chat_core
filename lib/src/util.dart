@@ -35,7 +35,7 @@ Future<List<types.Room>> processRoomsRows(
   User supabaseUser,
   SupabaseClient instance,
   List<dynamic> rows,
-  String usersCollectionName,
+  String usersTableName,
   String schema,
 ) async =>
     await Future.wait(
@@ -44,7 +44,7 @@ Future<List<types.Room>> processRoomsRows(
           doc,
           supabaseUser,
           instance,
-          usersCollectionName,
+          usersTableName,
           schema,
         ),
       ),
@@ -55,7 +55,7 @@ Future<types.Room> processRoomRow(
   Map<String, dynamic> data,
   User supabaseUser,
   SupabaseClient instance,
-  String usersCollectionName,
+  String usersTableName,
   String schema,
 ) async {
   var imageUrl = data['imageUrl'] as String?;
@@ -69,7 +69,7 @@ Future<types.Room> processRoomRow(
       (userId) => fetchUser(
         instance,
         userId as String,
-        usersCollectionName,
+        usersTableName,
         schema,
         role: userRoles?[userId] as String?,
       ),
