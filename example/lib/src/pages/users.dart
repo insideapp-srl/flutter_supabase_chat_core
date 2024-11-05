@@ -4,8 +4,8 @@ import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
+import '../widgets/user_tile.dart';
 import 'chat.dart';
-import 'util.dart';
 
 class UsersPage extends StatefulWidget {
   const UsersPage({super.key});
@@ -61,48 +61,6 @@ class _UsersPageState extends State<UsersPage> {
     }
   }
 
-  Widget _buildAvatar(types.User user) {
-    final color = getUserAvatarNameColor(user);
-    final hasImage = user.imageUrl != null;
-    final name = getUserName(user);
-    return Container(
-      margin: const EdgeInsets.only(right: 16),
-      child: UserOnlineStatusWidget(
-        uid: user.id,
-        builder: (status) => Stack(
-          alignment: Alignment.bottomRight,
-          children: [
-            CircleAvatar(
-              backgroundColor: hasImage ? Colors.transparent : color,
-              backgroundImage: hasImage ? NetworkImage(user.imageUrl!) : null,
-              radius: 20,
-              child: !hasImage
-                  ? Text(
-                      name.isEmpty ? '' : name[0].toUpperCase(),
-                      style: const TextStyle(color: Colors.white),
-                    )
-                  : null,
-            ),
-            if (status == UserOnlineStatus.online)
-              Container(
-                width: 10,
-                height: 10,
-                margin: const EdgeInsets.only(right: 3, bottom: 3),
-                decoration: BoxDecoration(
-                  color: Colors.green,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white,
-                    width: 2,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _handlePressed(types.User otherUser, BuildContext context) async {
     final navigator = Navigator.of(context);
     final room = await SupabaseChatCore.instance.createRoom(otherUser);
@@ -124,18 +82,25 @@ class _UsersPageState extends State<UsersPage> {
           title: const Text('Users'),
         ),
         body: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            TextField(
-              onChanged: (value) => _setFilters(value),
+            FractionallySizedBox(
+              widthFactor: .5,
+              child: TextField(
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Search',
+                ),
+                onChanged: (value) => _setFilters(value),
+              ),
             ),
             Expanded(
               child: PagedListView<int, types.User>(
                 pagingController: _controller,
                 builderDelegate: PagedChildBuilderDelegate<types.User>(
-                  itemBuilder: (context, user, index) => ListTile(
-                    leading: _buildAvatar(user),
-                    title: Text(getUserName(user)),
-                    onTap: () {
+                  itemBuilder: (context, user, index) => UserTile(
+                    user: user,
+                    onTap: (user) {
                       _handlePressed(user, context);
                     },
                   ),

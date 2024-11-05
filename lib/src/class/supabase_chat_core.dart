@@ -35,7 +35,8 @@ class SupabaseChatCore {
     'rooms_l',
     'messages',
     'users',
-    'online-user-', //online-user-${uid}
+    'online-user-',
+    //online-user-${uid}
     'chat-user-typing-', //chat-user-typing-${room_id}
   );
 
@@ -320,7 +321,6 @@ class SupabaseChatCore {
         ),
       );
     }
-    print(rooms);
     return rooms;
   }
 

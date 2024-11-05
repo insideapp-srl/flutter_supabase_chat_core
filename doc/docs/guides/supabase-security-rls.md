@@ -15,10 +15,11 @@ Security rules make use of some helper functions:
         RETURNS boolean
         LANGUAGE 'plpgsql'
         COST 100
-        VOLATILE NOT LEAKPROOF SECURITY DEFINER
+        VOLATILE NOT LEAKPROOF SECURITY INVOKER
+        SET search_path = ''
     AS $BODY$
     BEGIN
-    return auth.uid() IS NOT NULL;
+        return auth.uid() IS NOT NULL;
     end;
     $BODY$;
     
@@ -27,10 +28,11 @@ Security rules make use of some helper functions:
         RETURNS boolean
         LANGUAGE 'plpgsql'
         COST 100
-        VOLATILE NOT LEAKPROOF SECURITY DEFINER
+        VOLATILE NOT LEAKPROOF SECURITY INVOKER
+        SET search_path = ''
     AS $BODY$
     BEGIN
-    return auth.uid() = user_id;
+        return auth.uid() = user_id;
     end;
     $BODY$;
     
@@ -39,10 +41,11 @@ Security rules make use of some helper functions:
         RETURNS boolean
         LANGUAGE 'plpgsql'
         COST 100
-        VOLATILE NOT LEAKPROOF SECURITY DEFINER
+        VOLATILE NOT LEAKPROOF SECURITY INVOKER
+        SET search_path = ''
     AS $BODY$
     BEGIN
-    return auth.uid() = ANY(members);
+        return auth.uid() = ANY(members);
     end;
     $BODY$;
     
@@ -51,15 +54,16 @@ Security rules make use of some helper functions:
         RETURNS boolean
         LANGUAGE 'plpgsql'
         COST 100
-        VOLATILE NOT LEAKPROOF SECURITY DEFINER
+        VOLATILE NOT LEAKPROOF SECURITY INVOKER
+        SET search_path = ''
     AS $BODY$
     DECLARE
-    members uuid[];
+        members uuid[];
     BEGIN
-    SELECT "userIds" INTO members
-    FROM chats.rooms
-    WHERE id = room_id;
-    return chats.is_member(members);
+        SELECT "userIds" INTO members
+        FROM chats.rooms
+        WHERE id = room_id;
+        return chats.is_member(members);
     end;
     $BODY$;
 ```

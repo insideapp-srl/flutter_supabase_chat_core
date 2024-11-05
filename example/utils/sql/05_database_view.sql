@@ -1,5 +1,6 @@
 DROP VIEW IF EXISTS chats.rooms_l;
-create view chats.rooms_l as
+create view chats.rooms_l
+            WITH (security_invoker='on') as
 select
     r.id,
     r."imageUrl",

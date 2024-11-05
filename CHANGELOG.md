@@ -7,6 +7,10 @@
 
 * Added Rooms list pagination and searchable
 
+### Fixed
+
+* Security fix on RLS helper functions
+
 ## [1.2.0] - 2024-10-31
 #### [@rickypid](https://github.com/rickypid)
 

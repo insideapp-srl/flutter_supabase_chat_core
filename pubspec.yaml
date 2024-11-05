@@ -19,3 +19,7 @@ dependencies:
 
 dev_dependencies:
   flutter_lints: ^5.0.0
+
+screenshots:
+  - description: 'Flutter Supabase Chat Core - screenshot 1'
+    path: doc/static/img/flutter_chat_ui.png
