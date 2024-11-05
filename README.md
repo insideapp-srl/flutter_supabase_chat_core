@@ -253,7 +253,7 @@ Below are the features implemented for each platform:
 | Create group room        | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
 | Create channel room      | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
 | Chat screen              |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Search room              | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Search room              |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 | Search message           | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
 | Search user              |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 | Upload image             |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
