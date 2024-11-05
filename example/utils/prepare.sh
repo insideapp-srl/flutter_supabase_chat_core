@@ -14,3 +14,4 @@ psql -U $user -h $hostname -p $port -d $database -f ./sql/01_database_schema.sql
 psql -U $user -h $hostname -p $port -d $database -f ./sql/02_database_trigger.sql
 psql -U $user -h $hostname -p $port -d $database -f ./sql/03_database_policy.sql
 psql -U $user -h $hostname -p $port -d $database -f ./sql/04_storage.sql
+psql -U $user -h $hostname -p $port -d $database -f ./sql/05_database_view.sql
