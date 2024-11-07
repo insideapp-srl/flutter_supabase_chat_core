@@ -28,7 +28,6 @@ const config: Config = {
         defaultLocale: 'en',
         locales: ['en'],
     },
-
     presets: [
         [
             'classic',
@@ -51,6 +50,11 @@ const config: Config = {
     themeConfig: {
         // Replace with your project's social card
         image: 'img/social-card.png',
+        colorMode: {
+            defaultMode: 'dark',
+            disableSwitch: false,
+            respectPrefersColorScheme: false,
+        },
         navbar: {
             title: 'Flutter Supabase Chat Core',
             logo: {

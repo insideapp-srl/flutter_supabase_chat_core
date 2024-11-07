@@ -99,6 +99,8 @@ class SupabaseChatCore {
     }
   }
 
+  static String getAssetUrl(String bucket, String path) => '${client.storage.url}/object/authenticated/$bucket/$path';
+
   /// Gets proper [SupabaseClient] instance.
   SupabaseClient get client => Supabase.instance.client;
 

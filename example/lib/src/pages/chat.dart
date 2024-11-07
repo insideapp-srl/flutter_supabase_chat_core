@@ -27,7 +27,7 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   bool _isAttachmentUploading = false;
   late SupabaseChatController _chatController;
-  final String buket = 'chats_assets';
+  final String bucket = 'chats_assets';
 
   @override
   void initState() {
@@ -97,14 +97,13 @@ class _ChatPageState extends State<ChatPage> {
         final bytes = result.files.single.bytes;
         final name = result.files.single.name;
         final mimeType = lookupMimeType(name, headerBytes: bytes);
-        final reference =
-            await Supabase.instance.client.storage.from(buket).uploadBinary(
-                  '${widget.room.id}/${const Uuid().v1()}-$name',
-                  bytes!,
-                  fileOptions: FileOptions(contentType: mimeType),
-                );
-        final url =
-            '${Supabase.instance.client.storage.url}/object/authenticated/$reference';
+        final path = '${widget.room.id}/${const Uuid().v1()}-$name';
+        await Supabase.instance.client.storage.from(bucket).uploadBinary(
+              path,
+              bytes!,
+              fileOptions: FileOptions(contentType: mimeType),
+            );
+        final url = SupabaseChatCore.getAssetUrl(bucket, path);
         final message = types.PartialFile(
           mimeType: mimeType,
           name: name,
@@ -134,14 +133,13 @@ class _ChatPageState extends State<ChatPage> {
       final name = result.name;
       final mimeType = lookupMimeType(name, headerBytes: bytes);
       try {
-        final reference =
-            await Supabase.instance.client.storage.from(buket).uploadBinary(
-                  '${widget.room.id}/${const Uuid().v1()}-$name',
-                  bytes,
-                  fileOptions: FileOptions(contentType: mimeType),
-                );
-        final url =
-            '${Supabase.instance.client.storage.url}/object/authenticated/$reference';
+        final path = '${widget.room.id}/${const Uuid().v1()}-$name';
+        await Supabase.instance.client.storage.from(bucket).uploadBinary(
+              path,
+              bytes,
+              fileOptions: FileOptions(contentType: mimeType),
+            );
+        final url = SupabaseChatCore.getAssetUrl(bucket, path);
         final message = types.PartialImage(
           height: image.height.toDouble(),
           name: name,
