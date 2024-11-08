@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
+import 'package:mime/mime.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
+import '../../flutter_supabase_chat_core.dart';
 import '../util.dart';
 import 'supabase_chat_core_config.dart';
 import 'user_online_status.dart';
@@ -37,7 +41,9 @@ class SupabaseChatCore {
     'users',
     'online-user-',
     //online-user-${uid}
-    'chat-user-typing-', //chat-user-typing-${room_id}
+    'chat-user-typing-',
+    //chat-user-typing-${room_id}
+    'chats_assets',
   );
 
   /// Sets custom config to change default names for users, rooms
@@ -99,7 +105,29 @@ class SupabaseChatCore {
     }
   }
 
-  static String getAssetUrl(String bucket, String path) => '${client.storage.url}/object/authenticated/$bucket/$path';
+  /// Returns the URL of an asset path in the bucket
+  String getAssetUrl(String path) =>
+      '${client.storage.url}/object/authenticated/${config.chatAssetsBucket}/$path';
+
+
+  /// Returns a path based on the specified room id and asset name
+  String generateRoomAssetPath(types.Room room,String assetName) =>
+      '${room.id}/${const Uuid().v1()}-$assetName';
+
+  /// Allows you to upload an asset to a specific room by returning its URL and mimeType
+  Future<UploadAssetResult> uploadAsset(types.Room room,  String assetName, Uint8List bytes) async{
+    final mimeType = lookupMimeType(assetName, headerBytes: bytes);
+    final path = generateRoomAssetPath(room, assetName);
+    await Supabase.instance.client.storage
+        .from(SupabaseChatCore.instance.config.chatAssetsBucket)
+        .uploadBinary(
+      path,
+      bytes,
+      fileOptions: FileOptions(contentType: mimeType),
+    );
+    return UploadAssetResult(url: getAssetUrl(path), mimeType: mimeType);
+  }
+
 
   /// Gets proper [SupabaseClient] instance.
   SupabaseClient get client => Supabase.instance.client;

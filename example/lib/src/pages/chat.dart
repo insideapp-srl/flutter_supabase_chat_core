@@ -7,10 +7,7 @@ import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
-import 'package:mime/mime.dart';
 import 'package:open_filex/open_filex.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uuid/uuid.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({
@@ -27,7 +24,6 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   bool _isAttachmentUploading = false;
   late SupabaseChatController _chatController;
-  final String bucket = 'chats_assets';
 
   @override
   void initState() {
@@ -92,25 +88,17 @@ class _ChatPageState extends State<ChatPage> {
     );
     if (result != null && result.files.single.bytes != null) {
       _setAttachmentUploading(true);
-
       try {
         final bytes = result.files.single.bytes;
         final name = result.files.single.name;
-        final mimeType = lookupMimeType(name, headerBytes: bytes);
-        final path = '${widget.room.id}/${const Uuid().v1()}-$name';
-        await Supabase.instance.client.storage.from(bucket).uploadBinary(
-              path,
-              bytes!,
-              fileOptions: FileOptions(contentType: mimeType),
-            );
-        final url = SupabaseChatCore.getAssetUrl(bucket, path);
+        final uploadResult = await SupabaseChatCore.instance
+            .uploadAsset(widget.room, name, bytes!);
         final message = types.PartialFile(
-          mimeType: mimeType,
+          mimeType: uploadResult.mimeType,
           name: name,
           size: result.files.single.size,
-          uri: url,
+          uri: uploadResult.url,
         );
-
         await SupabaseChatCore.instance.sendMessage(message, widget.room.id);
         _setAttachmentUploading(false);
       } finally {
@@ -131,20 +119,14 @@ class _ChatPageState extends State<ChatPage> {
       final size = bytes.length;
       final image = await decodeImageFromList(bytes);
       final name = result.name;
-      final mimeType = lookupMimeType(name, headerBytes: bytes);
       try {
-        final path = '${widget.room.id}/${const Uuid().v1()}-$name';
-        await Supabase.instance.client.storage.from(bucket).uploadBinary(
-              path,
-              bytes,
-              fileOptions: FileOptions(contentType: mimeType),
-            );
-        final url = SupabaseChatCore.getAssetUrl(bucket, path);
+        final uploadResult = await SupabaseChatCore.instance
+            .uploadAsset(widget.room, name, bytes);
         final message = types.PartialImage(
           height: image.height.toDouble(),
           name: name,
           size: size,
-          uri: url,
+          uri: uploadResult.url,
           width: image.width.toDouble(),
         );
         await SupabaseChatCore.instance.sendMessage(
@@ -224,9 +206,7 @@ class _ChatPageState extends State<ChatPage> {
               onMessageTap: _handleMessageTap,
               onPreviewDataFetched: _handlePreviewDataFetched,
               onSendPressed: _handleSendPressed,
-              user: types.User(
-                id: SupabaseChatCore.instance.loggedSupabaseUser!.id,
-              ),
+              user: SupabaseChatCore.instance.loggedUser!,
               imageHeaders: SupabaseChatCore.instance.httpSupabaseHeaders,
               onMessageVisibilityChanged: (message, visible) async {
                 if (message.status != types.Status.seen &&
