@@ -4,7 +4,7 @@ import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 import '../widgets/room_tile.dart';
-import 'chat.dart';
+import 'room.dart';
 
 class RoomsPage extends StatefulWidget {
   const RoomsPage({super.key});
@@ -83,7 +83,7 @@ class _RoomsPageState extends State<RoomsPage> {
                   onTap: (room) {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (context) => ChatPage(
+                        builder: (context) => RoomPage(
                           room: room,
                         ),
                       ),

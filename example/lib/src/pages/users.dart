@@ -5,7 +5,7 @@ import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 import '../widgets/user_tile.dart';
-import 'chat.dart';
+import 'room.dart';
 
 class UsersPage extends StatefulWidget {
   const UsersPage({super.key});
@@ -68,7 +68,7 @@ class _UsersPageState extends State<UsersPage> {
     navigator.pop();
     await navigator.push(
       MaterialPageRoute(
-        builder: (context) => ChatPage(
+        builder: (context) => RoomPage(
           room: room,
         ),
       ),

@@ -9,8 +9,8 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:open_filex/open_filex.dart';
 
-class ChatPage extends StatefulWidget {
-  const ChatPage({
+class RoomPage extends StatefulWidget {
+  const RoomPage({
     super.key,
     required this.room,
   });
@@ -18,10 +18,10 @@ class ChatPage extends StatefulWidget {
   final types.Room room;
 
   @override
-  State<ChatPage> createState() => _ChatPageState();
+  State<RoomPage> createState() => _RoomPageState();
 }
 
-class _ChatPageState extends State<ChatPage> {
+class _RoomPageState extends State<RoomPage> {
   bool _isAttachmentUploading = false;
   late SupabaseChatController _chatController;
 
