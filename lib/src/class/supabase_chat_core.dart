@@ -328,7 +328,7 @@ class SupabaseChatCore {
     final queryUnlimited = filter != null && filter != ''
         ? table.select().ilike('name', '%$filter%')
         : table.select();
-    var query = queryUnlimited.order('updatedAt', ascending: true);
+    var query = queryUnlimited.order('updatedAt', ascending: false);
     if (offset != null && limit != null) {
       query = query.range(offset, offset + limit);
     } else if (limit != null) {
