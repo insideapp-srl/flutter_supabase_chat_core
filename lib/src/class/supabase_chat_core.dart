@@ -112,7 +112,10 @@ class SupabaseChatCore {
 
   /// Allows you to upload an asset to a specific room by returning its URL and mimeType
   Future<UploadAssetResult> uploadAsset(
-      types.Room room, String assetName, Uint8List bytes) async {
+    types.Room room,
+    String assetName,
+    Uint8List bytes,
+  ) async {
     final mimeType = lookupMimeType(assetName, headerBytes: bytes);
     final path = generateRoomAssetPath(room, assetName);
     await Supabase.instance.client.storage
