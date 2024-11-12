@@ -17,7 +17,7 @@ class RoomTile extends StatelessWidget {
   });
 
   Widget _buildAvatar(types.Room room) {
-    var color = Colors.transparent;
+    final color = getAvatarColor(room.id);
     var otherUserIndex = -1;
     types.User? otherUser;
 
@@ -27,7 +27,6 @@ class RoomTile extends StatelessWidget {
       );
       if (otherUserIndex >= 0) {
         otherUser = room.users[otherUserIndex];
-        color = getAvatarColor(otherUser.id);
       }
     }
 
