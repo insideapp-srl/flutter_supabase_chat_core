@@ -279,3 +279,4 @@ Below are some activities to complete to have a more complete and optimized proj
 4. Chat room channels
 5. Sending audio messages
 6. Improve documentation
+7. Manage the Stream on the paginate rooms list to receive updates

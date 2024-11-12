@@ -75,20 +75,30 @@ class _RoomsPageState extends State<RoomsPage> {
             ),
           ),
           Expanded(
-            child: PagedListView<int, types.Room>(
-              pagingController: _controller,
-              builderDelegate: PagedChildBuilderDelegate<types.Room>(
-                itemBuilder: (context, room, index) => RoomTile(
-                  room: room,
-                  onTap: (room) {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => RoomPage(
-                          room: room,
+            child: RefreshIndicator(
+              onRefresh: () async {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) {
+                    _controller.nextPageKey = 0;
+                    _controller.refresh();
+                  }
+                });
+              },
+              child: PagedListView<int, types.Room>(
+                pagingController: _controller,
+                builderDelegate: PagedChildBuilderDelegate<types.Room>(
+                  itemBuilder: (context, room, index) => RoomTile(
+                    room: room,
+                    onTap: (room) {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => RoomPage(
+                            room: room,
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
               ),
             ),

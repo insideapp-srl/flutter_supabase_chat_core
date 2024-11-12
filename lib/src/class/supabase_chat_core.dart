@@ -271,7 +271,8 @@ class SupabaseChatCore {
         .from(config.messagesTableName)
         .delete()
         .eq('roomId', roomId)
-        .eq('id', messageId);
+        .eq('id', messageId)
+        .limit(1);
   }
 
   /// Removes room.
@@ -280,7 +281,27 @@ class SupabaseChatCore {
         .schema(config.schema)
         .from(config.roomsTableName)
         .delete()
-        .eq('id', roomId);
+        .eq('id', roomId)
+        .limit(1);
+  }
+
+  /// Get room.
+  Future<types.Room?> getRoom(String roomId) async {
+    final fu = loggedSupabaseUser;
+    if (fu == null) return null;
+    final doc = await client
+        .schema(config.schema)
+        .from(config.roomsTableName)
+        .select()
+        .eq('id', roomId)
+        .limit(1);
+    return processRoomRow(
+      doc.first,
+      fu,
+      client,
+      config.usersTableName,
+      config.schema,
+    );
   }
 
   /// Returns a stream of changes in a room from Supabase.
