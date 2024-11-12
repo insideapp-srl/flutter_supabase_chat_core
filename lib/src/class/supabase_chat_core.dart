@@ -388,7 +388,7 @@ class SupabaseChatCore {
       }
     }
     rooms.sort(
-      (a, b) => b.createdAt?.compareTo(a.createdAt ?? 0) ?? -1,
+      (a, b) => b.updatedAt?.compareTo(a.updatedAt ?? 0) ?? -1,
     );
     return rooms;
   }
