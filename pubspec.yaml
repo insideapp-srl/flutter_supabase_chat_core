@@ -24,4 +24,4 @@ dev_dependencies:
 
 screenshots:
   - description: 'Flutter Supabase Chat Core - screenshot 1'
-    path: doc/static/img/flutter_chat_ui.png
+    path: doc/static/img/flayer_chat_ui_screenshot.png
