@@ -253,7 +253,7 @@ Below are the features implemented for each platform:
 | Create group room        | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
 | Create channel room      | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
 | Chat screen              |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
-| Search room              | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
+| Search room              |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 | Search message           | 🚧  |   🚧    | 🚧  |   🚧    |  🚧   |  🚧   |
 | Search user              |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
 | Upload image             |  ✅  |    ✅    | 🟡  |    ✅    |  🟡   |  🟡   |
@@ -279,3 +279,4 @@ Below are some activities to complete to have a more complete and optimized proj
 4. Chat room channels
 5. Sending audio messages
 6. Improve documentation
+7. Use rooms view for improvement user parsing performance

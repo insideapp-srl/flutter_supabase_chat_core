@@ -20,15 +20,15 @@ class SupabaseChatController {
   Timer? _endTypingTimer;
 
   /// SupabaseChatController constructor
-  /// [pageSize] define a pagination size
+  /// [pageSize] define a room messages pagination size
   /// [room] is required, is the controller's reference to the room
   SupabaseChatController({
     this.pageSize = 10,
     required types.Room room,
   }) {
     _room = room;
-    _typingChannel = client.channel(
-      '${config.realtimeChatTypingUserPrefixChannel}${_room.id}',
+    _typingChannel = _client.channel(
+      '${_config.realtimeChatTypingUserPrefixChannel}${_room.id}',
       opts: RealtimeChannelConfig(
         key: 'typing-state',
       ),
@@ -51,7 +51,7 @@ class SupabaseChatController {
             .where(
               (e) =>
                   users.contains(e.id) &&
-                  e.id != SupabaseChatCore.instance.supabaseUser!.id,
+                  e.id != SupabaseChatCore.instance.loggedSupabaseUser!.id,
             )
             .toList();
       }
@@ -63,15 +63,13 @@ class SupabaseChatController {
     );
   }
 
-  /// return a SupabaseClient instance
-  SupabaseClient get client => SupabaseChatCore.instance.client;
+  SupabaseClient get _client => SupabaseChatCore.instance.client;
 
-  /// return a SupabaseChatCoreConfig instance
-  SupabaseChatCoreConfig get config => SupabaseChatCore.instance.config;
+  SupabaseChatCoreConfig get _config => SupabaseChatCore.instance.config;
 
-  PostgrestTransformBuilder _messagesQuery() => client
-      .schema(config.schema)
-      .from(config.messagesTableName)
+  PostgrestTransformBuilder _messagesQuery() => _client
+      .schema(_config.schema)
+      .from(_config.messagesTableName)
       .select()
       .eq('roomId', int.parse(_room.id))
       .order('createdAt', ascending: false)
@@ -106,12 +104,12 @@ class SupabaseChatController {
   /// the next page of messages
   Stream<List<types.Message>> get messages {
     _messagesQuery().then((value) => _onData(value));
-    client
-        .channel('${config.schema}:${config.messagesTableName}:${_room.id}')
+    _client
+        .channel('${_config.schema}:${_config.messagesTableName}:${_room.id}')
         .onPostgresChanges(
           event: PostgresChangeEvent.all,
-          schema: config.schema,
-          table: config.messagesTableName,
+          schema: _config.schema,
+          table: _config.messagesTableName,
           filter: PostgresChangeFilter(
             type: PostgresChangeFilterType.eq,
             column: 'roomId',
@@ -135,7 +133,7 @@ class SupabaseChatController {
 
   void onTyping() async {
     if (_typingChannelSubscribed &&
-        SupabaseChatCore.instance.supabaseUser != null) {
+        SupabaseChatCore.instance.loggedSupabaseUser != null) {
       if (_throttleTimer?.isActive ?? false) return;
       _throttleTimer = Timer(Duration(milliseconds: 500), () {});
       _endTypingTimer?.cancel();
@@ -155,7 +153,7 @@ class SupabaseChatController {
   }
 
   Map<String, dynamic> _typingInfo(bool typing) => {
-        'uid': SupabaseChatCore.instance.supabaseUser!.id,
+        'uid': SupabaseChatCore.instance.loggedSupabaseUser!.id,
         'timestamp': DateTime.now().toIso8601String(),
         'typing': typing,
       };

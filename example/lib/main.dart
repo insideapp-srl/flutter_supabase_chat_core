@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'color_schemes.g.dart';
-import 'rooms.dart';
+import 'src/pages/home.dart';
+import 'src/theme/color_schemes.dart';
 import 'supabase_options.dart';
 
 void main() async {
@@ -34,7 +34,7 @@ class MyApp extends StatelessWidget {
         ),
         themeMode: ThemeMode.dark,
         home: const UserOnlineStateObserver(
-          child: RoomsPage(),
+          child: HomePage(),
         ),
       );
 }

@@ -1,7 +1,3 @@
-drop trigger if exists on_auth_user_created on auth.users;
-drop trigger if exists update_last_messages_trigger on chats.messages;
-drop trigger if exists update_status_before_insert on chats.messages;
-DROP function if exists chats.handle_new_user;
 
 CREATE OR REPLACE FUNCTION chats.handle_new_user()
     RETURNS trigger
@@ -21,9 +17,11 @@ BEGIN
 end;
 $BODY$;
 
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
     after insert on auth.users
     for each row execute procedure chats.handle_new_user();
+
 
 CREATE OR REPLACE FUNCTION chats.update_last_messages()
     RETURNS TRIGGER
@@ -41,11 +39,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+drop trigger if exists update_last_messages_trigger on chats.messages;
 CREATE TRIGGER update_last_messages_trigger
-    AFTER INSERT ON chats.messages
+    AFTER INSERT OR UPDATE ON chats.messages
     FOR EACH ROW
 EXECUTE FUNCTION chats.update_last_messages();
-
 
 CREATE OR REPLACE FUNCTION chats.set_message_status_to_sent()
     RETURNS TRIGGER
@@ -57,6 +55,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+drop trigger if exists update_status_before_insert on chats.messages;
 CREATE TRIGGER update_status_before_insert
     BEFORE INSERT ON chats.messages
     FOR EACH ROW EXECUTE FUNCTION chats.set_message_status_to_sent();

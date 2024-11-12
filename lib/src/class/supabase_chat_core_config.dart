@@ -1,8 +1,8 @@
 import 'package:meta/meta.dart';
 
 /// Class that represents the chat config. Can be used for setting custom names
-/// for rooms and users collections. Call [FirebaseChatCore.instance.setConfig]
-/// before doing anything else with [FirebaseChatCore.instance] if you want to
+/// for rooms and users collections. Call [SupabaseChatCore.instance.setConfig]
+/// before doing anything else with [SupabaseChatCore.instance] if you want to
 /// change the default collection names. When using custom names don't forget
 /// to update your security rules and indexes.
 @immutable
@@ -10,10 +10,12 @@ class SupabaseChatCoreConfig {
   const SupabaseChatCoreConfig(
     this.schema,
     this.roomsTableName,
+    this.roomsViewName,
     this.messagesTableName,
     this.usersTableName,
     this.realtimeOnlineUserPrefixChannel,
     this.realtimeChatTypingUserPrefixChannel,
+    this.chatAssetsBucket,
   );
 
   /// Property to set database schema name.
@@ -21,6 +23,9 @@ class SupabaseChatCoreConfig {
 
   /// Property to set rooms table name.
   final String roomsTableName;
+
+  /// Property to set rooms table view name.
+  final String roomsViewName;
 
   /// Property to set messages table name.
   final String messagesTableName;
@@ -33,4 +38,7 @@ class SupabaseChatCoreConfig {
 
   /// Property to set users typing in room realtime channel.
   final String realtimeChatTypingUserPrefixChannel;
+
+  /// Property to set chat assets bucket.
+  final String chatAssetsBucket;
 }
