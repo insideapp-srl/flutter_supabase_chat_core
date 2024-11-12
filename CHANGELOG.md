@@ -2,7 +2,7 @@
 #### [@rickypid](https://github.com/rickypid)
 
 ⚠️⚠️ **Some Breaking Changes** ⚠️⚠️
- 
+
 ### New features
 
 * Added Rooms list pagination and searchable

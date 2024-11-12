@@ -84,22 +84,37 @@ class _RoomsPageState extends State<RoomsPage> {
                   }
                 });
               },
-              child: PagedListView<int, types.Room>(
-                pagingController: _controller,
-                builderDelegate: PagedChildBuilderDelegate<types.Room>(
-                  itemBuilder: (context, room, index) => RoomTile(
-                    room: room,
-                    onTap: (room) {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => RoomPage(
-                            room: room,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+              child: StreamBuilder<List<types.Room>>(
+                stream: SupabaseChatCore.instance.roomsUpdates(),
+                builder: (context, snapshot) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      if (_filter == '' && snapshot.data != null) {
+                        _controller.itemList = SupabaseChatCore.updateRoomList(
+                          _controller.itemList ?? [],
+                          snapshot.data!,
+                        );
+                      }
+                    }
+                  });
+                  return PagedListView<int, types.Room>(
+                    pagingController: _controller,
+                    builderDelegate: PagedChildBuilderDelegate<types.Room>(
+                      itemBuilder: (context, room, index) => RoomTile(
+                        room: room,
+                        onTap: (room) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => RoomPage(
+                                room: room,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),

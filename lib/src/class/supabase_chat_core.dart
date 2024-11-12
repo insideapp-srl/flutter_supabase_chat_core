@@ -374,6 +374,64 @@ class SupabaseChatCore {
     return rooms;
   }
 
+  static List<types.Room> updateRoomList(
+    List<types.Room> roomsList,
+    List<types.Room> newRooms,
+  ) {
+    final rooms = List<types.Room>.from(roomsList);
+    for (var newRoom in newRooms) {
+      final index = rooms.indexWhere((room) => room.id == newRoom.id);
+      if (index != -1) {
+        rooms[index] = newRoom;
+      } else {
+        rooms.add(newRoom);
+      }
+    }
+    rooms.sort(
+      (a, b) => b.createdAt?.compareTo(a.createdAt ?? 0) ?? -1,
+    );
+    return rooms;
+  }
+
+  /// Returns a stream of rooms updates from Supabase. Only rooms where current
+  /// logged in user exist are returned.
+  Stream<List<types.Room>> roomsUpdates() {
+    final fu = loggedSupabaseUser;
+    if (fu == null) return const Stream.empty();
+    final controller = StreamController<List<types.Room>>();
+    final roomsList = <types.Room>[];
+
+    Future<void> onData(List<Map<String, dynamic>> data) async {
+      for (var val in data) {
+        final newRoom = await processRoomRow(
+          val,
+          fu,
+          client,
+          config.usersTableName,
+          config.schema,
+        );
+        final index = roomsList.indexWhere((room) => room.id == newRoom.id);
+        if (index != -1) {
+          roomsList[index] = newRoom;
+        } else {
+          roomsList.add(newRoom);
+        }
+      }
+      controller.sink.add(roomsList);
+    }
+
+    client
+        .channel('${config.schema}:${config.roomsTableName}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: config.schema,
+          table: config.roomsTableName,
+          callback: (payload) => onData([payload.newRecord]),
+        )
+        .subscribe();
+    return controller.stream;
+  }
+
   /// Sends a message to the Supabase. Accepts any partial message and a
   /// room ID. If arbitrary data is provided in the [partialMessage]
   /// does nothing.
