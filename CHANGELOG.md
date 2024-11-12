@@ -1,3 +1,10 @@
+## [1.3.1] - 2024-11-12
+#### [@rickypid](https://github.com/rickypid)
+
+### Fixed
+
+* Fixed `updateRoomList` sorting 
+ 
 ## [1.3.0] - 2024-11-04
 #### [@rickypid](https://github.com/rickypid)
 
