@@ -5,7 +5,7 @@ import 'package:flutter_login/flutter_login.dart';
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'rooms.dart';
+import 'home.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({
@@ -83,7 +83,7 @@ class _AuthScreenState extends State<AuthScreen> {
         onSubmitAnimationCompleted: () {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
-              builder: (context) => const RoomsPage(),
+              builder: (context) => const HomePage(),
             ),
           );
         },
