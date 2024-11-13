@@ -15,3 +15,4 @@ psql -U $user -h $hostname -p $port -d $database -f ./sql/02_database_trigger.sq
 psql -U $user -h $hostname -p $port -d $database -f ./sql/03_database_policy.sql
 psql -U $user -h $hostname -p $port -d $database -f ./sql/04_storage.sql
 psql -U $user -h $hostname -p $port -d $database -f ./sql/05_database_view.sql
+psql -U $user -h $hostname -p $port -d $database -f ./sql/99_database_schema_permission.sql
