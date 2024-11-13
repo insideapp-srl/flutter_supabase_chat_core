@@ -1,3 +1,12 @@
+## [1.3.2] - 2024-11-13
+#### [@rickypid](https://github.com/rickypid)
+
+Improve documentations
+
+### Fixed
+
+* Fixed schema `chats` permission after view creation
+
 ## [1.3.1] - 2024-11-12
 #### [@rickypid](https://github.com/rickypid)
 

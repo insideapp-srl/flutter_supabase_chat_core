@@ -3,7 +3,9 @@ id: supabase-triggers
 title: Database Triggers
 ---
 
-This is an example of a triggers that sets room's `lastMessages` to the most recent message sent once recieved in Supabase.
+## Update room last message
+
+This is a trigger that sets room's `lastMessages` to the most recent message sent once recieved in Supabase.
 
 ```sql
 CREATE OR REPLACE FUNCTION chats.update_last_messages()
@@ -29,6 +31,8 @@ CREATE TRIGGER update_last_messages_trigger
 EXECUTE FUNCTION chats.update_last_messages();
 ```
 
+## Set message status to sent
+
 "This trigger, on the other hand, is responsible for setting the message status to `sent` when it is added to the `messages` table:
 
 ```sql
@@ -47,6 +51,8 @@ CREATE TRIGGER update_status_before_insert
     BEFORE INSERT ON chats.messages
     FOR EACH ROW EXECUTE FUNCTION chats.set_message_status_to_sent();
 ```
+
+## Handle new user from `auth.users`
 
 "This trigger, is responsible for replicate `auth.users` table rows in `chats.users` table, this is to avoid exposing user data :
 

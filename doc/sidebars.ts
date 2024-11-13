@@ -33,6 +33,7 @@ const sidebars: SidebarsConfig = {
           'guides/supabase-usage',
           'guides/supabase-security',
           'guides/supabase-triggers',
+          'guides/supabase-views',
           'guides/supabase-indexes',
       ],
     },
