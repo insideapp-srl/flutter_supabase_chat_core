@@ -115,7 +115,7 @@ class SupabaseChatCore {
   /// Returns a stream of online user state from Supabase Realtime.
   Stream<UserOnlineStatus> userOnlineStatus(String uid) {
     final controller = StreamController<UserOnlineStatus>();
-    if(_onlineUserChannels[uid]==null) {
+    if (_onlineUserChannels[uid] == null) {
       _onlineUserChannels[uid] = _getUserOnlineStatusChannel(uid);
       _onlineUserChannels[uid]!.onPresenceJoin((payload) {
         controller.sink.add(_userStatus(payload.newPresences, uid));
