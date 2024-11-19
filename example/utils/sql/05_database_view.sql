@@ -55,6 +55,3 @@ select
 from chats.messages m
          left join chats.users u on u.id = m."authorId"
          left join chats.rooms_l r on r.id = m."roomId";
-
-
-
