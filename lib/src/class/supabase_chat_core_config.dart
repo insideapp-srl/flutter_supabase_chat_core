@@ -12,6 +12,7 @@ class SupabaseChatCoreConfig {
     this.roomsTableName,
     this.roomsViewName,
     this.messagesTableName,
+    this.messagesViewName,
     this.usersTableName,
     this.realtimeOnlineUserPrefixChannel,
     this.realtimeChatTypingUserPrefixChannel,
@@ -29,6 +30,9 @@ class SupabaseChatCoreConfig {
 
   /// Property to set messages table name.
   final String messagesTableName;
+
+  /// Property to set messages view name.
+  final String messagesViewName;
 
   /// Property to set users table name.
   final String usersTableName;

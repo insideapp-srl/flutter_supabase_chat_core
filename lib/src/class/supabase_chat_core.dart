@@ -50,6 +50,7 @@ class SupabaseChatCore {
     'rooms',
     'rooms_l',
     'messages',
+    'messages_l',
     'users',
     'online-user-',
     //online-user-${uid}
@@ -173,15 +174,7 @@ class SupabaseChatCore {
   }) async {
     if (loggedSupabaseUser == null) return Future.error('User does not exist');
 
-    final currentUser = await fetchUser(
-      client,
-      loggedSupabaseUser!.id,
-      config.usersTableName,
-      config.schema,
-      role: creatorRole.toShortString(),
-    );
-
-    final roomUsers = [types.User.fromJson(currentUser)] + users;
+    final roomUsers = [loggedUser!] + users;
 
     final room =
         await client.schema(config.schema).from(config.roomsTableName).insert({

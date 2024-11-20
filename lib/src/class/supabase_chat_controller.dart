@@ -69,7 +69,7 @@ class SupabaseChatController {
 
   PostgrestTransformBuilder _messagesQuery() => _client
       .schema(_config.schema)
-      .from(_config.messagesTableName)
+      .from(_config.messagesViewName)
       .select()
       .eq('roomId', int.parse(_room.id))
       .order('createdAt', ascending: false)
