@@ -16,7 +16,7 @@ dependencies:
   flutter_chat_types: ^3.6.2
   meta: ^1.15.0
   mime: ^1.0.6
-  supabase_flutter: ^2.8.0
+  supabase_flutter: ^2.8.1
   uuid: ^4.5.1
 
 dev_dependencies:
