@@ -1,3 +1,17 @@
+## [1.4.0] - 2024-11-21
+#### [@rickypid](https://github.com/rickypid)
+
+⚠️⚠️ **Need schema migration** ⚠️⚠️
+
+### Improvements
+
+* Now when we get the rooms the `rooms_l` view is used so that we can get all the information without having to do multiple queries
+
+### Fixed
+
+* Fixed #20 Chat creator role is null instead of admin
+* Fixed online user status realtime subscription
+
 ## [1.3.2] - 2024-11-13
 #### [@rickypid](https://github.com/rickypid)
 

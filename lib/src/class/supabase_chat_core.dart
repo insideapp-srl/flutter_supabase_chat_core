@@ -15,10 +15,25 @@ class SupabaseChatCore {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       if (loggedSupabaseUser != null) {
         _loggedUser = await user(uid: loggedSupabaseUser!.id);
-        _currentUserOnlineStatusChannel =
-            getUserOnlineStatusChannel(loggedSupabaseUser!.id);
+        if (_currentUserOnlineStatusChannel == null) {
+          _currentUserOnlineStatusChannel ??=
+              _getUserOnlineStatusChannel(loggedSupabaseUser!.id);
+          _currentUserOnlineStatusChannel?.subscribe(
+            (status, error) async {
+              _userStatusSubscribed =
+                  status == RealtimeSubscribeStatus.subscribed;
+              if (_lastOnlineStatus == UserOnlineStatus.online) {
+                await _trackUserStatus();
+              } else {
+                await _currentUserOnlineStatusChannel?.untrack();
+              }
+            },
+          );
+        }
       } else {
         _loggedUser = null;
+        await _currentUserOnlineStatusChannel?.unsubscribe();
+        _userStatusSubscribed = false;
         _currentUserOnlineStatusChannel = null;
       }
     });
@@ -35,6 +50,7 @@ class SupabaseChatCore {
     'rooms',
     'rooms_l',
     'messages',
+    'messages_l',
     'users',
     'online-user-',
     //online-user-${uid}
@@ -57,15 +73,14 @@ class SupabaseChatCore {
   /// Current logged in user. Is update automatically.
   types.User? get loggedUser => _loggedUser;
 
-  /// Returns user online status realtime channel .
-  RealtimeChannel getUserOnlineStatusChannel(String uid) =>
+  RealtimeChannel _getUserOnlineStatusChannel(String uid) =>
       client.channel('${config.realtimeOnlineUserPrefixChannel}$uid');
 
-  /// Returns a current user online status realtime channel .
+  UserOnlineStatus _lastOnlineStatus = UserOnlineStatus.offline;
+
   RealtimeChannel? _currentUserOnlineStatusChannel;
 
   bool _userStatusSubscribed = false;
-  bool _userStatusSubscribing = false;
 
   Future<void> _trackUserStatus() async {
     final userStatus = {
@@ -76,18 +91,7 @@ class SupabaseChatCore {
   }
 
   Future<void> setPresenceStatus(UserOnlineStatus status) async {
-    if (!_userStatusSubscribed && !_userStatusSubscribing) {
-      _userStatusSubscribing = true;
-      _currentUserOnlineStatusChannel?.subscribe(
-        (status, error) async {
-          if (status != RealtimeSubscribeStatus.subscribed) return;
-          _userStatusSubscribed = true;
-          _userStatusSubscribing = false;
-          await _trackUserStatus();
-        },
-      );
-    }
-
+    _lastOnlineStatus = status;
     switch (status) {
       case UserOnlineStatus.online:
         if (_userStatusSubscribed) {
@@ -100,6 +104,27 @@ class SupabaseChatCore {
         }
         break;
     }
+  }
+
+  final Map<String, RealtimeChannel> _onlineUserChannels = {};
+
+  UserOnlineStatus _userStatus(List<Presence> presences, String uid) =>
+      presences.map((e) => e.payload['uid']).contains(uid)
+          ? UserOnlineStatus.online
+          : UserOnlineStatus.offline;
+
+  /// Returns a stream of online user state from Supabase Realtime.
+  Stream<UserOnlineStatus> userOnlineStatus(String uid) {
+    final controller = StreamController<UserOnlineStatus>();
+    if (_onlineUserChannels[uid] == null) {
+      _onlineUserChannels[uid] = _getUserOnlineStatusChannel(uid);
+      _onlineUserChannels[uid]!.onPresenceJoin((payload) {
+        controller.sink.add(_userStatus(payload.newPresences, uid));
+      }).onPresenceLeave((payload) {
+        controller.sink.add(_userStatus(payload.currentPresences, uid));
+      }).subscribe();
+    }
+    return controller.stream;
   }
 
   /// Returns the URL of an asset path in the bucket
@@ -149,15 +174,7 @@ class SupabaseChatCore {
   }) async {
     if (loggedSupabaseUser == null) return Future.error('User does not exist');
 
-    final currentUser = await fetchUser(
-      client,
-      loggedSupabaseUser!.id,
-      config.usersTableName,
-      config.schema,
-      role: creatorRole.toShortString(),
-    );
-
-    final roomUsers = [types.User.fromJson(currentUser)] + users;
+    final roomUsers = [loggedUser!] + users;
 
     final room =
         await client.schema(config.schema).from(config.roomsTableName).insert({
@@ -322,21 +339,6 @@ class SupabaseChatCore {
             config.schema,
           ),
         );
-  }
-
-  /// Returns a stream of online user state from Supabase Realtime.
-  Stream<UserOnlineStatus> userOnlineStatus(String uid) {
-    final controller = StreamController<UserOnlineStatus>();
-    UserOnlineStatus userStatus(List<Presence> presences, String uid) =>
-        presences.map((e) => e.payload['uid']).contains(uid)
-            ? UserOnlineStatus.online
-            : UserOnlineStatus.offline;
-    getUserOnlineStatusChannel(uid).onPresenceJoin((payload) {
-      controller.sink.add(userStatus(payload.newPresences, uid));
-    }).onPresenceLeave((payload) {
-      controller.sink.add(userStatus(payload.currentPresences, uid));
-    }).subscribe();
-    return controller.stream;
   }
 
   /// Returns a paginated list of rooms from Supabase. Only rooms where current

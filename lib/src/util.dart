@@ -20,14 +20,17 @@ Future<Map<String, dynamic>> fetchUser(
   String usersTableName,
   String schema, {
   String? role,
-}) async =>
-    (await instance
-            .schema(schema)
-            .from(usersTableName)
-            .select()
-            .eq('id', userId)
-            .limit(1))
-        .first;
+}) async {
+  final data = (await instance
+          .schema(schema)
+          .from(usersTableName)
+          .select()
+          .eq('id', userId)
+          .limit(1))
+      .first;
+  data['role'] = role;
+  return data;
+}
 
 /// Returns a list of [types.Room] created from Firebase query.
 /// If room has 2 participants, sets correct room name and image.
@@ -63,30 +66,28 @@ Future<types.Room> processRoomRow(
   final type = data['type'] as String;
   final userIds = data['userIds'] as List<dynamic>;
   final userRoles = data['userRoles'] as Map<String, dynamic>?;
-
-  final users = await Future.wait(
-    userIds.map(
-      (userId) => fetchUser(
-        instance,
-        userId as String,
-        usersTableName,
-        schema,
-        role: userRoles?[userId] as String?,
-      ),
-    ),
-  );
+  final users = data['users'] ??
+      await Future.wait(
+        userIds.map(
+          (userId) => fetchUser(
+            instance,
+            userId as String,
+            usersTableName,
+            schema,
+            role: userRoles?[userId] as String?,
+          ),
+        ),
+      );
 
   if (type == types.RoomType.direct.toShortString()) {
-    try {
-      final otherUser = users.firstWhere(
-        (u) => u['id'] != supabaseUser.id,
-      );
+    final index = users.indexWhere(
+      (u) => u['id'] != supabaseUser.id,
+    );
+    if (index >= 0) {
+      final otherUser = users[index];
       imageUrl = otherUser['imageUrl'] as String?;
       name = '${otherUser['firstName'] ?? ''} ${otherUser['lastName'] ?? ''}'
           .trim();
-    } catch (e) {
-      // Do nothing if other user is not found, because he should be found.
-      // Consider falling back to some default values.
     }
   }
   data['imageUrl'] = imageUrl;
