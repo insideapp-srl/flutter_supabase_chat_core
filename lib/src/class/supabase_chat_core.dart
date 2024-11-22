@@ -174,7 +174,7 @@ class SupabaseChatCore {
   }) async {
     if (loggedSupabaseUser == null) return Future.error('User does not exist');
 
-    final roomUsers = [loggedUser!] + users;
+    final roomUsers = [loggedUser!.copyWith(role: creatorRole)] + users;
 
     final room =
         await client.schema(config.schema).from(config.roomsTableName).insert({

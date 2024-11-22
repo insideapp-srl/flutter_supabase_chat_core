@@ -1,3 +1,11 @@
+## [1.4.1] - 2024-11-21
+#### [@rickypid](https://github.com/rickypid)
+#### [@Parfyonator](https://github.com/Parfyonator)
+
+### Fixed
+
+* Fixed #20 Chat creator role is null instead of admin
+
 ## [1.4.0] - 2024-11-21
 #### [@rickypid](https://github.com/rickypid)
 

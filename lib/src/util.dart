@@ -66,7 +66,12 @@ Future<types.Room> processRoomRow(
   final type = data['type'] as String;
   final userIds = data['userIds'] as List<dynamic>;
   final userRoles = data['userRoles'] as Map<String, dynamic>?;
-  final users = data['users'] ??
+  final users = data['users']?.map(
+        (e) {
+          e['role'] = userRoles?[e['id']];
+          return e;
+        },
+      ).toList() ??
       await Future.wait(
         userIds.map(
           (userId) => fetchUser(
@@ -78,7 +83,6 @@ Future<types.Room> processRoomRow(
           ),
         ),
       );
-
   if (type == types.RoomType.direct.toShortString()) {
     final index = users.indexWhere(
       (u) => u['id'] != supabaseUser.id,
