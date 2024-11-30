@@ -1,3 +1,10 @@
+## [1.4.2] - 2024-11-30
+#### [@rickypid](https://github.com/rickypid)
+
+### Dependencies
+
+* Upgrade mine: '>=1.0.2 <3.0.0'
+
 ## [1.4.1] - 2024-11-21
 #### [@rickypid](https://github.com/rickypid)
 #### [@Parfyonator](https://github.com/Parfyonator)
