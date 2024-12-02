@@ -1,12 +1,43 @@
 <br>
 
 <p align="center">
+  <a href="https://pub.dartlang.org/packages/flutter_supabase_chat_core">
+    <img alt="Pub" src="https://img.shields.io/pub/v/flutter_supabase_chat_core" />
+  </a>
+  <a href="https://pub.dev/packages/flutter_supabase_chat_core/score">
+    <img alt="Pub" src="https://img.shields.io/pub/points/flutter_supabase_chat_core" />
+  </a>
+  <a href="https://pub.dev/packages/flutter_supabase_chat_core/score">
+    <img alt="Pub" src="https://img.shields.io/pub/likes/flutter_supabase_chat_core" />
+  </a>
+  <a href="https://github.com/insideapp-srl/flutter_supabase_chat_core/actions?query=workflow%3Abuild">
+    <img alt="Build Status" src="https://github.com/insideapp-srl/flutter_supabase_chat_core/workflows/build/badge.svg" />
+  </a>
+  <a href="https://www.codefactor.io/repository/github/insideapp-srl/flutter_supabase_chat_core">
+    <img alt="CodeFactor" src="https://www.codefactor.io/repository/github/insideapp-srl/flutter_supabase_chat_core/badge" />
+  </a>
+</p>
+<p align="center">
+  <a href="https://github.com/insideapp-srl/flutter_supabase_chat_core">
+    <img alt="Pub" src="https://img.shields.io/static/v1?label=flutter&message=flutter_supabase_chat_core&color=red??style=for-the-badge&logo=GitHub" />
+  </a>
+  <a href="https://github.com/insideapp-srl/flutter_supabase_chat_core/issues">
+    <img alt="Build Status" src="https://img.shields.io/github/issues/insideapp-srl/flutter_supabase_chat_core" />
+  </a>
+  <a href="https://github.com/insideapp-srl/flutter_supabase_chat_core/blob/main/LICENSE">
+    <img alt="CodeFactor" src="https://img.shields.io/github/license/insideapp-srl/flutter_supabase_chat_core" />
+  </a>
+</p>
+
+<p align="center">
   <a href="https://flyer.chat">
     <img src="https://flyer.chat/assets/logo-dark.svg" width="288px" alt="Flyer Chat logo" />
   </a>
 </p>
 
 <h1 align="center">Flutter Supabase Chat Core</h1>
+<h2 align="center">Add chat support to your app in 10 minutes!</h2>
+<br>
 
 <p align="center">
     This project is an implementation of the <a href="https://pub.dev/packages/flutter_chat_types">flutter_chat_types</a>, <a href="https://pub.dev/packages/flutter_chat_ui">flutter_chat_ui</a> packages based on a backend created with <a href="https://supabase.com/">Supabase</a>.
@@ -21,21 +52,7 @@
 <br>
 
 <p align="center">
-  ⚠️⚠️ Recommended for small or PoC projects, might not be optimized for large amounts of data. I suggest to use this on a free plan, otherwise be extremely cautious. ⚠️⚠️
-</p>
-
-<br>
-
-<p align="center">
-  <a href="https://pub.dartlang.org/packages/flutter_supabase_chat_core">
-    <img alt="Pub" src="https://img.shields.io/pub/v/flutter_supabase_chat_core" />
-  </a>
-  <a href="https://github.com/insideapp-srl/flutter_supabase_chat_core/actions?query=workflow%3Abuild">
-    <img alt="Build Status" src="https://github.com/insideapp-srl/flutter_supabase_chat_core/workflows/build/badge.svg" />
-  </a>
-  <a href="https://www.codefactor.io/repository/github/insideapp-srl/flutter_supabase_chat_core">
-    <img alt="CodeFactor" src="https://www.codefactor.io/repository/github/insideapp-srl/flutter_supabase_chat_core/badge" />
-  </a>
+    ⚠️⚠️ This project has been optimized to support scalability, but careful evaluation is recommended before integrating it into large-scale projects, considering specific requirements and available resources. ⚠️⚠️
 </p>
 
 <br>
