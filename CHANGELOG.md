@@ -1,3 +1,8 @@
+## [1.4.3] - 2024-11-30
+#### [@rickypid](https://github.com/rickypid)
+
+Improvement documentations.
+
 ## [1.4.2] - 2024-11-30
 #### [@rickypid](https://github.com/rickypid)
 
