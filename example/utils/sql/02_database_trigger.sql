@@ -28,14 +28,46 @@ CREATE OR REPLACE FUNCTION chats.update_last_messages()
     SET search_path = ''
 AS $$
 DECLARE
+    latest_message jsonb;
     ts_in_milliseconds bigint;
 BEGIN
-    SELECT EXTRACT(epoch FROM NOW()) * 1000 INTO ts_in_milliseconds;
-    UPDATE chats.rooms
-    SET "updatedAt" = ts_in_milliseconds,
-        "lastMessages" = jsonb_build_array(NEW)
-    WHERE id = NEW."roomId";
-    RETURN NEW;
+        SELECT jsonb_build_object(
+            'id', id,
+            'createdAt', "createdAt",
+            'metadata', metadata,
+            'duration', duration,
+            'mimeType', "mimeType",
+            'name', name,
+            'remoteId', "remoteId",
+            'repliedMessage', "repliedMessage",
+            'roomId', "roomId",
+            'showStatus', "showStatus",
+            'size', size,
+            'status', status,
+            'type', type,
+            'updatedAt', "updatedAt",
+            'uri', uri,
+            'waveForm', "waveForm",
+            'isLoading', "isLoading",
+            'height', height,
+            'width', width,
+            'previewData', "previewData",
+            'authorId', "authorId",
+            'text', text
+        )
+        INTO latest_message
+        FROM chats.messages
+        WHERE "roomId" = NEW."roomId"
+        ORDER BY "createdAt" DESC
+        LIMIT 1;
+        IF latest_message IS DISTINCT FROM (SELECT "lastMessages" FROM chats.rooms WHERE id = NEW."roomId") THEN
+                SELECT EXTRACT(epoch FROM NOW()) * 1000 INTO ts_in_milliseconds;
+                UPDATE chats.rooms
+                SET "updatedAt" = ts_in_milliseconds,
+                    "lastMessages" = jsonb_build_array(latest_message)
+                WHERE id = NEW."roomId";
+        END IF;
+        RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
