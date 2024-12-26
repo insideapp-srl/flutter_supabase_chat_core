@@ -1,7 +1,14 @@
-## [1.4.3] - 2024-11-30
+## [1.4.3] - 2024-12-26
 #### [@rickypid](https://github.com/rickypid)
+#### [@lazy-geek](https://github.com/lazy-geek)
+
+ℹ️ ℹ️ **Recommended scheme migration** ℹ️ ℹ️
 
 Improvement documentations.
+
+### Fixed
+
+* Fixed #25 Update chats.update_last_messages trigger to make sure it is only called for actual last message in case of update
 
 ## [1.4.2] - 2024-11-30
 #### [@rickypid](https://github.com/rickypid)
