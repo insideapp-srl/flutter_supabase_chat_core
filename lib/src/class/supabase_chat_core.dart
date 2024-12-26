@@ -288,8 +288,7 @@ class SupabaseChatCore {
         .from(config.messagesTableName)
         .delete()
         .eq('roomId', roomId)
-        .eq('id', messageId)
-        .limit(1);
+        .eq('id', messageId);
   }
 
   /// Removes room.
@@ -298,8 +297,7 @@ class SupabaseChatCore {
         .schema(config.schema)
         .from(config.roomsTableName)
         .delete()
-        .eq('id', roomId)
-        .limit(1);
+        .eq('id', roomId);
   }
 
   /// Get room.

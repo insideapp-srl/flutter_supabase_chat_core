@@ -9,6 +9,7 @@ Improvement documentations.
 ### Fixed
 
 * Fixed #25 Update chats.update_last_messages trigger to make sure it is only called for actual last message in case of update
+* Fixed #27 Error in room or message deletion query, a `limit(1)` was incorrectly applied
 
 ## [1.4.2] - 2024-11-30
 #### [@rickypid](https://github.com/rickypid)
