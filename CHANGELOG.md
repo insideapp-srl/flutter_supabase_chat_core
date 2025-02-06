@@ -1,3 +1,10 @@
+## [1.5.0] - 2025-02-06
+#### [@rickypid](https://github.com/rickypid)
+
+### Dependencies
+
+* Upgrade supabase_flutter: ^2.8.3
+
 ## [1.4.3] - 2024-12-26
 #### [@rickypid](https://github.com/rickypid)
 #### [@lazy-geek](https://github.com/lazy-geek)
