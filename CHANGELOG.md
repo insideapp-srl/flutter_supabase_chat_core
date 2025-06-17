@@ -1,5 +1,7 @@
-## [1.5.1] - 2025-06-17
+## [1.6.0] - 2025-06-17
 #### [@rickypid](https://github.com/rickypid)
+
+ℹ️ ℹ️ **Recommended scheme migration** ℹ️ ℹ️
 
 ### Fixed
 
