@@ -77,14 +77,7 @@ class SupabaseChatController {
 
   void _onData(
     List<Map<String, dynamic>> newData,
-    List<Map<String, dynamic>> oldData,
   ) {
-    final deletedMessagesId = oldData
-        .map(
-          (e) => e['id'].toString(),
-        )
-        .toList();
-    _messages.removeWhere((element) => deletedMessagesId.contains(element.id));
     for (var val in newData) {
       final author = _room.users.firstWhere(
         (u) => u.id == val['authorId'],
@@ -112,7 +105,7 @@ class SupabaseChatController {
   /// then it will be necessary to call the [loadPreviousMessages] method to get
   /// the next page of messages
   Stream<List<types.Message>> get messages {
-    _messagesQuery().then((value) => _onData(value, []));
+    _messagesQuery().then((value) => _onData(value));
     _client
         .channel('${_config.schema}:${_config.messagesTableName}:${_room.id}')
         .onPostgresChanges(
@@ -124,8 +117,7 @@ class SupabaseChatController {
             column: 'roomId',
             value: _room.id,
           ),
-          callback: (payload) =>
-              _onData([payload.newRecord], [payload.oldRecord]),
+          callback: (payload) => _onData([payload.newRecord]),
         )
         .subscribe();
     return _messagesController.stream;
@@ -135,7 +127,7 @@ class SupabaseChatController {
   /// page
   Future<void> loadPreviousMessages() async {
     _currentPage += 1;
-    await _messagesQuery().then((value) => _onData(value, []));
+    await _messagesQuery().then((value) => _onData(value));
   }
 
   /// Returns a stream of typing users from Supabase for a specified room.
@@ -167,6 +159,17 @@ class SupabaseChatController {
         'timestamp': DateTime.now().toIso8601String(),
         'typing': typing,
       };
+
+  /// Removes message.
+  Future<bool> deleteMessage(String roomId, String messageId) async {
+    final result =
+        await SupabaseChatCore.instance.deleteMessage(roomId, messageId);
+    if (result) {
+      _messages.removeWhere((e) => messageId == e.id);
+      _messagesController.sink.add(_messages);
+    }
+    return result;
+  }
 
   void dispose() {
     _typingChannel.untrack();

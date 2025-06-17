@@ -282,13 +282,15 @@ class SupabaseChatCore {
   }
 
   /// Removes message.
-  Future<void> deleteMessage(String roomId, String messageId) async {
-    await client
+  Future<bool> deleteMessage(String roomId, String messageId) async {
+    final result = await client
         .schema(config.schema)
         .from(config.messagesTableName)
         .delete()
         .eq('roomId', roomId)
-        .eq('id', messageId);
+        .eq('id', messageId)
+        .select();
+    return result.isNotEmpty;
   }
 
   /// Removes room.
