@@ -245,7 +245,6 @@ class _RoomPageState extends State<RoomPage> {
                   await _chatController.deleteMessage(widget.room.id, p1.id);
                 }
               },
-
             ),
           ),
         ),
