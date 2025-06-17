@@ -76,7 +76,9 @@ class SupabaseChatController {
       .range(pageSize * _currentPage, (_currentPage * pageSize) + pageSize);
 
   void _onData(
-      List<Map<String, dynamic>> newData, List<Map<String, dynamic>> oldData,) {
+    List<Map<String, dynamic>> newData,
+    List<Map<String, dynamic>> oldData,
+  ) {
     final deletedMessagesId = oldData
         .map(
           (e) => e['id'].toString(),
