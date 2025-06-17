@@ -6,6 +6,7 @@
 ### Fixed
 
 * Fixed #29 update messages list after delete message
+* Fixed update room last message trigger
 
 ### Dependencies
 
