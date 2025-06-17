@@ -9,6 +9,7 @@
 
 * Upgraded `supabase_flutter` to `^2.9.1`
 * Upgraded `meta` to `^1.16.0`
+* Added `web` `^1.1.1`
  
 ## [1.5.0] - 2025-02-06
 #### [@rickypid](https://github.com/rickypid)
