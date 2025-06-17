@@ -1,3 +1,15 @@
+## [1.5.1] - 2025-06-17
+#### [@rickypid](https://github.com/rickypid)
+
+### Fixed
+
+* Fixed #29 update messages list after delete message
+
+### Dependencies
+
+* Upgraded `supabase_flutter` to `^2.9.1`
+* Upgraded `meta` to `^1.16.0`
+ 
 ## [1.5.0] - 2025-02-06
 #### [@rickypid](https://github.com/rickypid)
 
