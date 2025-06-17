@@ -30,50 +30,46 @@ AS $$
 DECLARE
     latest_message jsonb;
     ts_in_milliseconds bigint;
+    affected_room_id bigint;
 BEGIN
-        SELECT jsonb_build_object(
-            'id', id,
-            'createdAt', "createdAt",
-            'metadata', metadata,
-            'duration', duration,
-            'mimeType', "mimeType",
-            'name', name,
-            'remoteId', "remoteId",
-            'repliedMessage', "repliedMessage",
-            'roomId', "roomId",
-            'showStatus', "showStatus",
-            'size', size,
-            'status', status,
-            'type', type,
-            'updatedAt', "updatedAt",
-            'uri', uri,
-            'waveForm', "waveForm",
-            'isLoading', "isLoading",
-            'height', height,
-            'width', width,
-            'previewData', "previewData",
-            'authorId', "authorId",
-            'text', text
-        )
-        INTO latest_message
-        FROM chats.messages
-        WHERE "roomId" = NEW."roomId"
-        ORDER BY "createdAt" DESC
-        LIMIT 1;
-        IF latest_message IS DISTINCT FROM (SELECT "lastMessages" FROM chats.rooms WHERE id = NEW."roomId") THEN
-                SELECT EXTRACT(epoch FROM NOW()) * 1000 INTO ts_in_milliseconds;
-                UPDATE chats.rooms
-                SET "updatedAt" = ts_in_milliseconds,
-                    "lastMessages" = jsonb_build_array(latest_message)
-                WHERE id = NEW."roomId";
-        END IF;
+    IF TG_OP = 'DELETE' THEN
+        affected_room_id := OLD."roomId";
+    ELSE
+        affected_room_id := NEW."roomId";
+    END IF;
+
+    SELECT to_jsonb(m)
+    INTO latest_message
+    FROM chats.messages m
+    WHERE m."roomId" = affected_room_id
+    ORDER BY m."createdAt" DESC
+    LIMIT 1;
+
+    IF latest_message IS DISTINCT FROM (
+        SELECT value FROM jsonb_array_elements(
+                (SELECT "lastMessages" FROM chats.rooms WHERE id = affected_room_id)
+                          ) LIMIT 1
+    ) THEN
+        SELECT EXTRACT(epoch FROM NOW()) * 1000 INTO ts_in_milliseconds;
+
+        UPDATE chats.rooms
+        SET "updatedAt" = ts_in_milliseconds,
+            "lastMessages" = jsonb_build_array(latest_message)
+        WHERE id = affected_room_id;
+    END IF;
+
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    ELSE
         RETURN NEW;
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
+
 drop trigger if exists update_last_messages_trigger on chats.messages;
 CREATE TRIGGER update_last_messages_trigger
-    AFTER INSERT OR UPDATE ON chats.messages
+    AFTER INSERT OR UPDATE OR DELETE ON chats.messages
     FOR EACH ROW
 EXECUTE FUNCTION chats.update_last_messages();
 
