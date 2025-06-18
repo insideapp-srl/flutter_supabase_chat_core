@@ -223,6 +223,28 @@ class _RoomPageState extends State<RoomPage> {
                 enabled: true,
                 onTextChanged: (text) => _chatController.onTyping(),
               ),
+              onMessageLongPress: (context, p1) async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: Text('Confirmation of deletion'),
+                    content: Text('Do you really want to delete this message?'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: Text('Delete'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  await _chatController.deleteMessage(widget.room.id, p1.id);
+                }
+              },
             ),
           ),
         ),

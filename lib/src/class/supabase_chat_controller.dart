@@ -75,8 +75,10 @@ class SupabaseChatController {
       .order('createdAt', ascending: false)
       .range(pageSize * _currentPage, (_currentPage * pageSize) + pageSize);
 
-  void _onData(List<Map<String, dynamic>> data) {
-    for (var val in data) {
+  void _onData(
+    List<Map<String, dynamic>> newData,
+  ) {
+    for (var val in newData) {
       final author = _room.users.firstWhere(
         (u) => u.id == val['authorId'],
         orElse: () => types.User(id: val['authorId'] as String),
@@ -157,6 +159,17 @@ class SupabaseChatController {
         'timestamp': DateTime.now().toIso8601String(),
         'typing': typing,
       };
+
+  /// Removes message.
+  Future<bool> deleteMessage(String roomId, String messageId) async {
+    final result =
+        await SupabaseChatCore.instance.deleteMessage(roomId, messageId);
+    if (result) {
+      _messages.removeWhere((e) => messageId == e.id);
+      _messagesController.sink.add(_messages);
+    }
+    return result;
+  }
 
   void dispose() {
     _typingChannel.untrack();

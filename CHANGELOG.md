@@ -1,3 +1,19 @@
+## [1.6.0] - 2025-06-17
+#### [@rickypid](https://github.com/rickypid)
+
+ℹ️ ℹ️ **Recommended scheme migration** ℹ️ ℹ️
+
+### Fixed
+
+* Fixed #29 update messages list after delete message
+* Fixed update room last message trigger
+
+### Dependencies
+
+* Upgraded `supabase_flutter` to `^2.9.1`
+* Upgraded `meta` to `^1.16.0`
+* Added `web` `^1.1.1`
+ 
 ## [1.5.0] - 2025-02-06
 #### [@rickypid](https://github.com/rickypid)
 
