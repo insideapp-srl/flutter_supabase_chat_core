@@ -1,3 +1,10 @@
+## [1.6.2] - 2026-03-31
+#### [@rickypid](https://github.com/rickypid)
+
+### Fixed
+
+* Update Docusaurus dependencies to 3.9.2.
+
 ## [1.6.1] - 2026-03-09
 #### [@rickypid](https://github.com/rickypid)
 
