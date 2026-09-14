@@ -59,9 +59,7 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.add,
-            ),
+            icon: const Icon(Icons.add),
             onPressed: _user == null
                 ? null
                 : () {
@@ -84,9 +82,7 @@ class _HomePageState extends State<HomePage> {
       body: _user == null
           ? Container(
               alignment: Alignment.center,
-              margin: const EdgeInsets.only(
-                bottom: 200,
-              ),
+              margin: const EdgeInsets.only(bottom: 200),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [

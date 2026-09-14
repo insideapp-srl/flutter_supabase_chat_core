@@ -12,10 +12,7 @@ class UserOnlineStateObserver extends StatefulWidget {
   final Widget child;
 
   /// [UserOnlineStateObserver] Widget constructor
-  const UserOnlineStateObserver({
-    super.key,
-    required this.child,
-  });
+  const UserOnlineStateObserver({super.key, required this.child});
 
   @override
   State<UserOnlineStateObserver> createState() =>

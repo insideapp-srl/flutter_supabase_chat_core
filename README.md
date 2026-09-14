@@ -31,7 +31,7 @@
 
 <p align="center">
   <a href="https://flyer.chat">
-    <img src="https://flyer.chat/assets/logo-dark.svg" width="288px" alt="Flyer Chat logo" />
+    <img src="doc/static/img/flyer-chat-logo-dark.svg" width="288px" alt="Flyer Chat logo" />
   </a>
 </p>
 
@@ -40,7 +40,11 @@
 <br>
 
 <p align="center">
-    This project is an implementation of the <a href="https://pub.dev/packages/flutter_chat_types">flutter_chat_types</a>, <a href="https://pub.dev/packages/flutter_chat_ui">flutter_chat_ui</a> packages based on a backend created with <a href="https://supabase.com/">Supabase</a>.
+    This project is an implementation of the <a href="https://pub.dev/packages/flutter_chat_core">flutter_chat_core</a>, <a href="https://pub.dev/packages/flutter_chat_ui">flutter_chat_ui</a> packages based on a backend created with <a href="https://supabase.com/">Supabase</a>.
+</p>
+
+<p align="center">
+    ℹ️ Coming from 1.x (<code>flutter_chat_types</code>)? See <a href="MIGRATION.md">MIGRATION.md</a> for the upgrade guide to 2.x (<code>flutter_chat_core</code>). ℹ️
 </p>
 
 <br>
@@ -59,7 +63,7 @@
 
 <p align="center">
   <a href="https://flyer.chat">
-    <img alt="Chat Image" src="https://user-images.githubusercontent.com/14123304/193468140-91942302-2332-4cb1-8504-61b8892d828b.jpg" />
+    <img alt="Chat Image" src="doc/static/img/flyer-chat-hero.jpg" />
   </a>
 </p>
 
@@ -85,45 +89,50 @@ The example project that you find in the package repository allows you to have a
 
 ### Requirements
 
-`Dart >=2.19.0` and `Flutter >=3.0.0`, [Supabase](https://supabase.com) project.
+`Dart >=3.8.0` and `Flutter >=3.32.0`, [Supabase](https://supabase.com) project.
 
 ### Create a Supabase project
 
 1. Install Supabase CLI: [Official documentation](https://supabase.com/docs/guides/cli/getting-started)
-2. Open your bash
-3. Login with Supabase:
+2. Login with Supabase: `supabase login`
+3. Install [`jq`](https://jqlang.org/download/) (Linux/macOS only — needed by `supabase_prepare.sh` to parse the CLI's JSON output; not needed on Windows)
+4. Run the project creation script from `example/utils`:
+
+#### Linux/macOS
 
 ```bash
-supabase login
+cd example/utils
+./supabase_prepare.sh
 ```
 
-4. Create new project (For example `demo-chat`):
+#### Windows
 
-```bash
-supabase projects create demo-chat
+```powershell
+cd example\utils
+.\supabase_prepare.ps1
 ```
 
-5. Select your organization
-6. Select an region
-7. Insert a secure password for new Postgres database (Save this in a secure location)
-8. Obtain your `REFERENCE ID` (After command select your project, for example `demo-chat`):
+It creates the Supabase project (prompting for a name, organization ID and region), generates a database password for you (Supabase never shows it again after creation, so it's saved for you — see below), writes `example/lib/supabase_options_for_test.dart` and `example/lib/main_test.dart` (both gitignored — `main.dart`/`supabase_options.dart` stay untouched placeholders, safe to commit) with your project's URL and anon key, and offers to run the database preparation script (below) right away. Run the app with `flutter run -t lib/main_test.dart`.
 
-```bash
-supabase projects list
-```
+All the references it collected — project ref, URL, anon/service_role keys, database host/port/user/password — are written to `example/utils/project-secrets.local.json`. **This file contains secrets: it's already gitignored, never commit it.** Use it as your source of truth for reconnecting to the project later (e.g. to re-run the preparation script, or to open `psql` directly).
 
-9. Obtain your `anon` key (After command select your project, for example `demo-chat`):
+Prefer doing it by hand, or don't have `jq`/want to review each step? The manual equivalent is:
 
-```bash
-supabase projects api-keys
-```
-10. Edit `example project` file `example/lib/supabase_options.dart`, insert your project `{{your_project_reference_id}}` and `{{supabase_anon_key}}`
+<details>
+<summary>Manual steps</summary>
+
+1. `supabase projects create demo-chat` (choose your organization, region, and a secure database password — save it, it won't be shown again)
+2. `supabase projects list` to get the project's `REFERENCE ID`
+3. `supabase projects api-keys --project-ref <reference_id>` to get the `anon` key
+4. Edit `example/lib/supabase_options_for_test.dart` (create it if missing, see `example/lib/supabase_options.dart` for the shape), filling in your project's URL (`https://<reference_id>.supabase.co`) and anon key
+
+</details>
 
 #### Prepare Supabase project
 
-Inside the example project (`example/utils`) there is a script, running the latter will automatically configure the Supabase project, creating tables, security rules, buckets and everything that is necessary for the example project to function.
+Inside the example project (`example/utils`) there is a script (`prepare.sh`/`prepare.ps1`, already run for you by `supabase_prepare.sh`/`.ps1` above), running the latter will automatically configure the Supabase project, creating tables, security rules, buckets and everything that is necessary for the example project to function.
 
-In order to run the script you need to be aware of the following information about your Supabase project:
+In order to run the script you need to be aware of the following information about your Supabase project (already in `project-secrets.local.json` if you used `supabase_prepare.sh`/`.ps1`):
 
 - `host` : Project host
 - `port` : Database port
@@ -163,7 +172,7 @@ Optional (**Only for test**): Disable email verification and save the configurat
 
 ![Supabase dashboard disable email verification](doc/static/img/supabase-disable-confirm-email.png "Disable email verification")
 
-Read our [documentation](https://flutter-supabase-chat-core.insideapp.it) or see the [example](https://github.com/insideapp-srl/flutter_supabase_chat_core/tree/main/example) project. To run the example project you need to have your own [Supabase](https://supabase.com/dashboard/projects) project and then follow [Add Supabase to your Flutter app](https://supabase.com/docs/reference/dart/initializing), override `example/lib/supabase_options.dart`, don't commit it though 😉
+Read our [documentation](https://flutter-supabase-chat-core.insideapp.it) or see the [example](https://github.com/insideapp-srl/flutter_supabase_chat_core/tree/main/example) project. To run the example project you need to have your own [Supabase](https://supabase.com/dashboard/projects) project — `supabase_prepare.sh`/`.ps1` above sets this up for you; if you'd rather do it by hand, follow [Add Supabase to your Flutter app](https://supabase.com/docs/reference/dart/initializing) and fill in `example/lib/supabase_options_for_test.dart` (gitignored — see `supabase_options.dart` for the shape, and don't edit that tracked file directly) plus a `main_test.dart` importing it 😉
 
 After all of this is done you will need to register a couple of users and the example app will automatically suggest email and password on the register screen, default password is `Qawsed1-`. To set up [Supabase Security Rules](https://supabase.com/docs/guides/database/postgres/row-level-security) so users can see only the data they should see, continue with our [documentation](https://flutter-supabase-chat-core.insideapp.it/).
 
@@ -291,9 +300,9 @@ Below are the features implemented for each platform:
 Below are some activities to complete to have a more complete and optimized project also for use cases in larger projects.
 
 1. Add the missing triggers
-2. Error handling
+2. ~~Error handling~~ ✅ Done — see `SupabaseChatCoreException` in [MIGRATION.md](MIGRATION.md)
 3. Chat room groups
 4. Chat room channels
-5. Sending audio messages
+5. ~~Sending audio messages~~ ✅ Done — see `example/lib/src/pages/room.dart` (`record` for capture, a custom `AudioMessageBubble` for playback — no usable `flyer_chat_audio_message` widget exists yet)
 6. Improve documentation
 

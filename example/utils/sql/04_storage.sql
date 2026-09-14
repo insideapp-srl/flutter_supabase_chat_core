@@ -2,7 +2,8 @@ insert into storage.buckets
   (id, name)
 values
   ('chats_assets', 'chats_assets'),
-  ('chats_user_avatar', 'chats_user_avatar');
+  ('chats_user_avatar', 'chats_user_avatar')
+on conflict (id) do nothing;
 
 DROP policy IF EXISTS "storage.object_grant_create_auth_chats_assets"
     ON storage.objects;
@@ -11,7 +12,7 @@ on storage.objects for insert
 with check (
     bucket_id = 'chats_assets'
     and
-    chats.is_chat_member((storage.foldername(name))[1]::bigint));
+    chats.is_chat_member((storage.foldername(name))[1]::uuid));
 
 DROP policy IF EXISTS "storage.object_grant_read_auth_chats_assets"
     ON storage.objects;
@@ -20,7 +21,7 @@ on storage.objects for select
 using (
     bucket_id = 'chats_assets'
     and
-    chats.is_chat_member((storage.foldername(name))[1]::bigint));
+    chats.is_chat_member((storage.foldername(name))[1]::uuid));
 
 DROP policy IF EXISTS "storage.object_grant_update_auth_chats_assets"
     ON storage.objects;
@@ -29,11 +30,11 @@ on storage.objects for update
 using (
     bucket_id = 'chats_assets'
     and
-    chats.is_chat_member((storage.foldername(name))[1]::bigint))
+    chats.is_chat_member((storage.foldername(name))[1]::uuid))
 with check (
     bucket_id = 'chats_assets'
     and
-    chats.is_chat_member((storage.foldername(name))[1]::bigint));
+    chats.is_chat_member((storage.foldername(name))[1]::uuid));
 
 DROP policy IF EXISTS "storage.object_grant_delete_auth_chats_assets"
     ON storage.objects;
@@ -42,7 +43,7 @@ on storage.objects for delete
 using (
     bucket_id = 'chats_assets'
     and
-    chats.is_chat_member((storage.foldername(name))[1]::bigint));
+    chats.is_chat_member((storage.foldername(name))[1]::uuid));
 
 DROP policy IF EXISTS "storage.object_grant_create_auth_chats_user_avatar"
     ON storage.objects;

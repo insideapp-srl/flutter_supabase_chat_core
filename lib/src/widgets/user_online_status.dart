@@ -20,9 +20,9 @@ class UserOnlineStatusWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => StreamBuilder<UserOnlineStatus>(
-        stream: SupabaseChatCore.instance.userOnlineStatus(uid),
-        initialData: UserOnlineStatus.offline,
-        builder: (context, snapshot) =>
-            builder(snapshot.data ?? UserOnlineStatus.offline),
-      );
+    stream: SupabaseChatCore.instance.userOnlineStatus(uid),
+    initialData: UserOnlineStatus.offline,
+    builder: (context, snapshot) =>
+        builder(snapshot.data ?? UserOnlineStatus.offline),
+  );
 }

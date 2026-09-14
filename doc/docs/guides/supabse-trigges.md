@@ -3,6 +3,10 @@ id: supabase-triggers
 title: Database Triggers
 ---
 
+:::info
+Since 2.x, `chats.messages` is a native partitioned table (see [Database Indexes](supabse-indexes.md#pg_partman-partitioning)). Row-level triggers defined on a partitioned parent (like the two below on `chats.messages`) apply automatically to every partition on Postgres 13+, which Supabase self-hosted already ships — nothing below needs to change because of partitioning.
+:::
+
 ## Update room last message
 
 This is a trigger that sets room's `lastMessages` to the most recent message sent once recieved in Supabase.
@@ -15,7 +19,7 @@ AS $$
 DECLARE
     latest_message jsonb;
     ts_in_milliseconds bigint;
-    affected_room_id bigint;
+    affected_room_id uuid;
 BEGIN
     IF TG_OP = 'DELETE' THEN
         affected_room_id := OLD."roomId";

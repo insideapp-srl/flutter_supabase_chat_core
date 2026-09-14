@@ -38,7 +38,7 @@ from chats.rooms r;
 
 ## Messages view
 
-This is a view of `messages` table, this view allows you to obtain the author user object and room object.
+This is a view of the `messages` table. Since 2.x it's a straight passthrough of `chats.messages` under RLS: `flutter_chat_core`'s v2 `Message` model only carries `authorId` (a plain string), not an embedded author object, and has no room concept at all — so there's no `author`/`room` join to do anymore (contrast with `rooms_l` above, which still resolves participant users for the room list). Column names match `flutter_chat_core`'s v2 field names directly (`source`, `waveform`, `linkPreviewData`, `replyToMessageId`, ...).
 
 ```sql
 create or replace view chats.messages_l
@@ -49,25 +49,20 @@ select m.id,
        m.duration,
        m."mimeType",
        m.name,
-       m."remoteId",
-       m."repliedMessage",
+       m."replyToMessageId",
        m."roomId",
-       m."showStatus",
        m.size,
        m.status,
        m.type,
        m."updatedAt",
-       m.uri,
-       m."waveForm",
-       m."isLoading",
+       m.source,
+       m.waveform,
        m.height,
        m.width,
-       m."previewData",
+       m."linkPreviewData",
        m."authorId",
        m.text,
-       to_jsonb(u) as author,
-       to_jsonb(r) as room
-from chats.messages m
-         left join chats.users u on u.id = m."authorId"
-         left join chats.rooms_l r on r.id = m."roomId";
+       m.reactions,
+       m.pinned
+from chats.messages m;
 ```

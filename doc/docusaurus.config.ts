@@ -21,6 +21,17 @@ const config: Config = {
     onBrokenLinks: 'throw',
     onBrokenMarkdownLinks: 'warn',
 
+    headTags: [
+        {
+            tagName: 'link',
+            attributes: {
+                rel: 'apple-touch-icon',
+                sizes: '180x180',
+                href: '/img/apple-touch-icon.png',
+            },
+        },
+    ],
+
     // Even if you don't use internationalization, you can use this field to set
     // useful metadata like html lang. For example, if your site is Chinese, you
     // may want to replace "en" with "zh-Hans".
@@ -56,10 +67,11 @@ const config: Config = {
             respectPrefersColorScheme: false,
         },
         navbar: {
-            title: 'Flutter Supabase Chat Core',
+            title: 'Supabase Chat Core',
             logo: {
                 alt: 'Flyer Chat Logo',
-                src: 'img/logo.svg',
+                src: 'img/flyer-chat-logo-dark.svg',
+                srcDark: 'img/flyer-chat-logo-light.svg',
             },
             items: [
                 {
@@ -103,15 +115,6 @@ const config: Config = {
                         {
                             label: 'GitHub',
                             href: 'https://github.com/insideapp-srl/flutter_supabase_chat_core',
-                        },
-                    ],
-                },
-                {
-                    title: 'More',
-                    items: [
-                        {
-                            label: 'Blog',
-                            to: 'https://blog.insideapp.it/',
                         },
                     ],
                 },

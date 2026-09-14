@@ -6,7 +6,7 @@ param(
 )
 
 try {
-    Get-Command psql.exe -ErrorAction Stop
+    Get-Command psql -ErrorAction Stop
 }
 catch {
     Write-Error "psql was not found. Please ensure PostgreSQL is installed and that psql is in your PATH."

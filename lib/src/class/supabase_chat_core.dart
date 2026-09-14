@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
+import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
 import 'package:mime/mime.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -14,21 +14,27 @@ class SupabaseChatCore {
   SupabaseChatCore._privateConstructor() {
     Supabase.instance.client.auth.onAuthStateChange.listen((data) async {
       if (loggedSupabaseUser != null) {
-        _loggedUser = await user(uid: loggedSupabaseUser!.id);
+        try {
+          _loggedUser = await user(uid: loggedSupabaseUser!.id);
+        } on SupabaseChatCoreException {
+          // Auth state changes fire in the background with no caller to
+          // report to; fail safe to "no cached user" rather than crashing
+          // the listener (the next auth state change will retry).
+          _loggedUser = null;
+        }
         if (_currentUserOnlineStatusChannel == null) {
-          _currentUserOnlineStatusChannel ??=
-              _getUserOnlineStatusChannel(loggedSupabaseUser!.id);
-          _currentUserOnlineStatusChannel?.subscribe(
-            (status, error) async {
-              _userStatusSubscribed =
-                  status == RealtimeSubscribeStatus.subscribed;
-              if (_lastOnlineStatus == UserOnlineStatus.online) {
-                await _trackUserStatus();
-              } else {
-                await _currentUserOnlineStatusChannel?.untrack();
-              }
-            },
+          _currentUserOnlineStatusChannel ??= _getUserOnlineStatusChannel(
+            loggedSupabaseUser!.id,
           );
+          _currentUserOnlineStatusChannel?.subscribe((status, error) async {
+            _userStatusSubscribed =
+                status == RealtimeSubscribeStatus.subscribed;
+            if (_lastOnlineStatus == UserOnlineStatus.online) {
+              await _trackUserStatus();
+            } else {
+              await _currentUserOnlineStatusChannel?.untrack();
+            }
+          });
         }
       } else {
         _loggedUser = null;
@@ -52,10 +58,10 @@ class SupabaseChatCore {
     'messages',
     'messages_l',
     'users',
-    'online-user-',
     //online-user-${uid}
-    'chat-user-typing-',
+    'online-user-',
     //chat-user-typing-${room_id}
+    'chat-user-typing-',
     'chats_assets',
   );
 
@@ -68,10 +74,10 @@ class SupabaseChatCore {
   /// Current logged in user in Supabase. Is update automatically.
   User? get loggedSupabaseUser => Supabase.instance.client.auth.currentUser;
 
-  types.User? _loggedUser;
+  ChatUser? _loggedUser;
 
   /// Current logged in user. Is update automatically.
-  types.User? get loggedUser => _loggedUser;
+  ChatUser? get loggedUser => _loggedUser;
 
   RealtimeChannel _getUserOnlineStatusChannel(String uid) =>
       client.channel('${config.realtimeOnlineUserPrefixChannel}$uid');
@@ -110,19 +116,22 @@ class SupabaseChatCore {
 
   UserOnlineStatus _userStatus(List<Presence> presences, String uid) =>
       presences.map((e) => e.payload['uid']).contains(uid)
-          ? UserOnlineStatus.online
-          : UserOnlineStatus.offline;
+      ? UserOnlineStatus.online
+      : UserOnlineStatus.offline;
 
   /// Returns a stream of online user state from Supabase Realtime.
   Stream<UserOnlineStatus> userOnlineStatus(String uid) {
     final controller = StreamController<UserOnlineStatus>();
     if (_onlineUserChannels[uid] == null) {
       _onlineUserChannels[uid] = _getUserOnlineStatusChannel(uid);
-      _onlineUserChannels[uid]!.onPresenceJoin((payload) {
-        controller.sink.add(_userStatus(payload.newPresences, uid));
-      }).onPresenceLeave((payload) {
-        controller.sink.add(_userStatus(payload.currentPresences, uid));
-      }).subscribe();
+      _onlineUserChannels[uid]!
+          .onPresenceJoin((payload) {
+            controller.sink.add(_userStatus(payload.newPresences, uid));
+          })
+          .onPresenceLeave((payload) {
+            controller.sink.add(_userStatus(payload.currentPresences, uid));
+          })
+          .subscribe();
     }
     return controller.stream;
   }
@@ -132,15 +141,15 @@ class SupabaseChatCore {
       '${client.storage.url}/object/authenticated/${config.chatAssetsBucket}/$path';
 
   /// Returns a path based on the specified room id and asset name
-  String generateRoomAssetPath(types.Room room, String assetName) =>
+  String generateRoomAssetPath(ChatRoom room, String assetName) =>
       '${room.id}/${const Uuid().v1()}-$assetName';
 
   /// Allows you to upload an asset to a specific room by returning its URL and mimeType
   Future<UploadAssetResult> uploadAsset(
-    types.Room room,
+    ChatRoom room,
     String assetName,
     Uint8List bytes,
-  ) async {
+  ) => _guard('uploadAsset', () async {
     final mimeType = lookupMimeType(assetName, headerBytes: bytes);
     final path = generateRoomAssetPath(room, assetName);
     await Supabase.instance.client.storage
@@ -151,178 +160,243 @@ class SupabaseChatCore {
           fileOptions: FileOptions(contentType: mimeType),
         );
     return UploadAssetResult(url: getAssetUrl(path), mimeType: mimeType);
-  }
+  });
 
   /// Gets proper [SupabaseClient] instance.
   SupabaseClient get client => Supabase.instance.client;
 
   /// Return header for authenticate api calls to Supabase
   Map<String, String> get httpSupabaseHeaders => {
-        'Authorization': 'Bearer ${client.auth.currentSession?.accessToken}',
-      };
+    'Authorization': 'Bearer ${client.auth.currentSession?.accessToken}',
+  };
+
+  /// Wraps whatever the Supabase client throws for [operation] into the
+  /// matching [SupabaseChatCoreException] subtype, so callers only need to
+  /// catch one type instead of every possible Supabase exception.
+  SupabaseChatCoreException _mapError(
+    String operation,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    if (error is SupabaseChatCoreException) return error;
+    if (error is AuthException) {
+      return SupabaseChatCoreAuthException(
+        '$operation failed',
+        cause: error,
+        stackTrace: stackTrace,
+      );
+    }
+    if (error is StorageException) {
+      return SupabaseChatCoreStorageException(
+        '$operation failed',
+        cause: error,
+        stackTrace: stackTrace,
+      );
+    }
+    return SupabaseChatCoreRequestException(
+      '$operation failed',
+      cause: error,
+      stackTrace: stackTrace,
+    );
+  }
+
+  /// Runs [body], rethrowing any error it throws as the matching
+  /// [SupabaseChatCoreException] subtype (see [_mapError]).
+  Future<T> _guard<T>(String operation, Future<T> Function() body) async {
+    try {
+      return await body();
+    } catch (e, st) {
+      throw _mapError(operation, e, st);
+    }
+  }
 
   /// Creates a chat group room with [users]. Creator is automatically
   /// added to the group. [name] is required and will be used as
   /// a group name. Add an optional [imageUrl] that will be a group avatar
   /// and [metadata] for any additional custom data.
-  Future<types.Room> createGroupRoom({
-    types.Role creatorRole = types.Role.admin,
+  Future<ChatRoom> createGroupRoom({
+    ChatRoomRole creatorRole = ChatRoomRole.admin,
     String? imageUrl,
     Map<String, dynamic>? metadata,
     required String name,
-    required List<types.User> users,
+    required List<ChatUser> users,
   }) async {
-    if (loggedSupabaseUser == null) return Future.error('User does not exist');
+    if (loggedSupabaseUser == null) {
+      throw const SupabaseChatCoreAuthException(
+        'createGroupRoom requires a logged-in user',
+      );
+    }
 
     final roomUsers = [loggedUser!.copyWith(role: creatorRole)] + users;
 
-    final room =
-        await client.schema(config.schema).from(config.roomsTableName).insert({
-      'createdAt': DateTime.now().millisecondsSinceEpoch,
-      'imageUrl': imageUrl,
-      'metadata': metadata,
-      'name': name,
-      'type': types.RoomType.group.toShortString(),
-      'updatedAt': DateTime.now().millisecondsSinceEpoch,
-      'userIds': roomUsers.map((u) => u.id).toList(),
-      'userRoles': roomUsers.fold<Map<String, String?>>(
-        {},
-        (previousValue, user) => {
-          ...previousValue,
-          user.id: user.role?.toShortString(),
-        },
-      ),
-    }).select();
+    return _guard('createGroupRoom', () async {
+      final room = await client
+          .schema(config.schema)
+          .from(config.roomsTableName)
+          .insert({
+            'createdAt': DateTime.now().millisecondsSinceEpoch,
+            'imageUrl': imageUrl,
+            'metadata': metadata,
+            'name': name,
+            'type': ChatRoomType.group.name,
+            'updatedAt': DateTime.now().millisecondsSinceEpoch,
+            'userIds': roomUsers.map((u) => u.id).toList(),
+            'userRoles': roomUsers.fold<Map<String, String?>>(
+              {},
+              (previousValue, user) => {
+                ...previousValue,
+                user.id: user.role?.name,
+              },
+            ),
+          })
+          .select();
 
-    return types.Room(
-      id: room.first['id'].toString(),
-      imageUrl: imageUrl,
-      metadata: metadata,
-      name: name,
-      type: types.RoomType.group,
-      users: roomUsers,
-    );
+      return ChatRoom(
+        id: room.first['id'].toString(),
+        imageUrl: imageUrl,
+        metadata: metadata,
+        name: name,
+        type: ChatRoomType.group,
+        users: roomUsers,
+      );
+    });
   }
 
   /// Creates a direct chat for 2 people. Add [metadata] for any additional
   /// custom data.
-  Future<types.Room> createRoom(
-    types.User otherUser, {
+  Future<ChatRoom> createRoom(
+    ChatUser otherUser, {
     Map<String, dynamic>? metadata,
   }) async {
     final su = loggedSupabaseUser;
 
-    if (su == null) return Future.error('User does not exist');
-
-    // Sort two user ids array to always have the same array for both users,
-    // this will make it easy to find the room if exist and make one read only.
-    final userIds = [su.id, otherUser.id]..sort();
-
-    final roomQuery = await client
-        .schema(config.schema)
-        .from(config.roomsTableName)
-        .select()
-        .eq('type', types.RoomType.direct.toShortString())
-        .eq('userIds', userIds)
-        .limit(1);
-    // Check if room already exist.
-    if (roomQuery.isNotEmpty) {
-      final room = (await processRoomsRows(
-        su,
-        client,
-        roomQuery,
-        config.usersTableName,
-        config.schema,
-      ))
-          .first;
-
-      return room;
+    if (su == null) {
+      throw const SupabaseChatCoreAuthException(
+        'createRoom requires a logged-in user',
+      );
     }
 
-    final currentUser = await fetchUser(
-      client,
-      su.id,
-      config.usersTableName,
-      config.schema,
-    );
+    return _guard('createRoom', () async {
+      // Sort two user ids array to always have the same array for both
+      // users, this will make it easy to find the room if exist and make one
+      // read only.
+      final userIds = [su.id, otherUser.id]..sort();
 
-    final users = [types.User.fromJson(currentUser), otherUser];
+      final roomQuery = await client
+          .schema(config.schema)
+          .from(config.roomsTableName)
+          .select()
+          .eq('type', ChatRoomType.direct.name)
+          .eq('userIds', userIds)
+          .limit(1);
+      // Check if room already exist.
+      if (roomQuery.isNotEmpty) {
+        final room = (await processRoomsRows(
+          su,
+          client,
+          roomQuery,
+          config.usersTableName,
+          config.schema,
+        )).first;
 
-    // Create new room with sorted user ids array.
-    final room =
-        await client.schema(config.schema).from(config.roomsTableName).insert({
-      'createdAt': DateTime.now().millisecondsSinceEpoch,
-      'imageUrl': null,
-      'metadata': metadata,
-      'name': null,
-      'type': types.RoomType.direct.toShortString(),
-      'updatedAt': DateTime.now().millisecondsSinceEpoch,
-      'userIds': userIds,
-      'userRoles': null,
-    }).select();
-    return types.Room(
-      id: room.first['id'].toString(),
-      metadata: metadata,
-      type: types.RoomType.direct,
-      users: users,
-    );
+        return room;
+      }
+
+      final currentUser = await fetchUser(
+        client,
+        su.id,
+        config.usersTableName,
+        config.schema,
+      );
+
+      final users = [ChatUser.fromJson(currentUser), otherUser];
+
+      // Create new room with sorted user ids array.
+      final room = await client
+          .schema(config.schema)
+          .from(config.roomsTableName)
+          .insert({
+            'createdAt': DateTime.now().millisecondsSinceEpoch,
+            'imageUrl': null,
+            'metadata': metadata,
+            'name': null,
+            'type': ChatRoomType.direct.name,
+            'updatedAt': DateTime.now().millisecondsSinceEpoch,
+            'userIds': userIds,
+            'userRoles': null,
+          })
+          .select();
+      return ChatRoom(
+        id: room.first['id'].toString(),
+        metadata: metadata,
+        type: ChatRoomType.direct,
+        users: users,
+      );
+    });
   }
 
-  /// Update [types.User] in Supabase to store name and avatar used on
+  /// Update [ChatUser] in Supabase to store name and avatar used on
   /// rooms list.
-  Future<void> updateUser(types.User user) async {
-    await client.schema(config.schema).from(config.usersTableName).update({
-      'firstName': user.firstName,
-      'imageUrl': user.imageUrl,
-      'lastName': user.lastName,
-      'metadata': user.metadata,
-      'role': user.role?.toShortString(),
-      'updatedAt': DateTime.now().millisecondsSinceEpoch,
-    }).eq('id', user.id);
-  }
+  Future<void> updateUser(ChatUser user) => _guard('updateUser', () async {
+    await client
+        .schema(config.schema)
+        .from(config.usersTableName)
+        .update({
+          'firstName': user.firstName,
+          'imageUrl': user.imageUrl,
+          'lastName': user.lastName,
+          'metadata': user.metadata,
+          'role': user.role?.name,
+          'updatedAt': DateTime.now().millisecondsSinceEpoch,
+        })
+        .eq('id', user.id);
+  });
 
   /// Removes message.
-  Future<bool> deleteMessage(String roomId, String messageId) async {
-    final result = await client
-        .schema(config.schema)
-        .from(config.messagesTableName)
-        .delete()
-        .eq('roomId', roomId)
-        .eq('id', messageId)
-        .select();
-    return result.isNotEmpty;
-  }
+  Future<bool> deleteMessage(String roomId, String messageId) =>
+      _guard('deleteMessage', () async {
+        final result = await client
+            .schema(config.schema)
+            .from(config.messagesTableName)
+            .delete()
+            .eq('roomId', roomId)
+            .eq('id', messageId)
+            .select();
+        return result.isNotEmpty;
+      });
 
   /// Removes room.
-  Future<void> deleteRoom(String roomId) async {
+  Future<void> deleteRoom(String roomId) => _guard('deleteRoom', () async {
     await client
         .schema(config.schema)
         .from(config.roomsTableName)
         .delete()
         .eq('id', roomId);
-  }
+  });
 
   /// Get room.
-  Future<types.Room?> getRoom(String roomId) async {
+  Future<ChatRoom?> getRoom(String roomId) async {
     final fu = loggedSupabaseUser;
     if (fu == null) return null;
-    final doc = await client
-        .schema(config.schema)
-        .from(config.roomsTableName)
-        .select()
-        .eq('id', roomId)
-        .limit(1);
-    return processRoomRow(
-      doc.first,
-      fu,
-      client,
-      config.usersTableName,
-      config.schema,
-    );
+    return _guard('getRoom', () async {
+      final doc = await client
+          .schema(config.schema)
+          .from(config.roomsTableName)
+          .select()
+          .eq('id', roomId)
+          .limit(1);
+      return processRoomRow(
+        doc.first,
+        fu,
+        client,
+        config.usersTableName,
+        config.schema,
+      );
+    });
   }
 
   /// Returns a stream of changes in a room from Supabase.
-  Stream<types.Room> room(String roomId) {
+  Stream<ChatRoom> room(String roomId) {
     final fu = loggedSupabaseUser;
     if (fu == null) return const Stream.empty();
     return client
@@ -330,57 +404,63 @@ class SupabaseChatCore {
         .from(config.roomsTableName)
         .stream(primaryKey: ['id'])
         .eq('id', roomId)
-        .asyncMap(
-          (doc) => processRoomRow(
-            doc.first,
-            fu,
-            client,
-            config.usersTableName,
-            config.schema,
-          ),
-        );
+        .asyncMap((doc) async {
+          try {
+            return await processRoomRow(
+              doc.first,
+              fu,
+              client,
+              config.usersTableName,
+              config.schema,
+            );
+          } catch (e, st) {
+            throw _mapError('room', e, st);
+          }
+        });
   }
 
   /// Returns a paginated list of rooms from Supabase. Only rooms where current
   /// logged in user exist are returned.
-  Future<List<types.Room>> rooms({
+  Future<List<ChatRoom>> rooms({
     String? filter,
     int? offset = 0,
     int? limit = 20,
   }) async {
     if (loggedSupabaseUser == null) return const [];
-    final table = client.schema(config.schema).from(config.roomsViewName);
+    return _guard('rooms', () async {
+      final table = client.schema(config.schema).from(config.roomsViewName);
 
-    final queryUnlimited = filter != null && filter != ''
-        ? table.select().ilike('name', '%$filter%')
-        : table.select();
-    var query = queryUnlimited.order('updatedAt', ascending: false);
-    if (offset != null && limit != null) {
-      query = query.range(offset, offset + limit);
-    } else if (limit != null) {
-      query = query.limit(limit);
-    }
-    final response = await query;
-    final rooms = <types.Room>[];
-    for (var r in response) {
-      rooms.add(
-        await processRoomRow(
-          r,
-          loggedSupabaseUser!,
-          client,
-          config.usersTableName,
-          config.schema,
-        ),
-      );
-    }
-    return rooms;
+      final queryUnlimited = filter != null && filter != ''
+          ? table.select().ilike('name', '%$filter%')
+          : table.select();
+      var query = queryUnlimited.order('updatedAt', ascending: false);
+      if (offset != null && limit != null) {
+        query = query.range(offset, offset + limit);
+      } else if (limit != null) {
+        query = query.limit(limit);
+      }
+      final response = await query;
+      final rooms = <ChatRoom>[];
+      for (var r in response) {
+        rooms.add(
+          await processRoomRow(
+            r,
+            loggedSupabaseUser!,
+            client,
+            config.usersTableName,
+            config.schema,
+          ),
+        );
+      }
+      return rooms;
+    });
   }
 
-  static List<types.Room> updateRoomList(
-    List<types.Room> roomsList,
-    List<types.Room> newRooms,
+  static List<ChatRoom> updateRoomList(
+    List<ChatRoom> roomsList,
+    List<ChatRoom> newRooms,
   ) {
-    final rooms = List<types.Room>.from(roomsList);
+    final rooms = List<ChatRoom>.from(roomsList);
     for (var newRoom in newRooms) {
       final index = rooms.indexWhere((room) => room.id == newRoom.id);
       if (index != -1) {
@@ -389,37 +469,39 @@ class SupabaseChatCore {
         rooms.add(newRoom);
       }
     }
-    rooms.sort(
-      (a, b) => b.updatedAt?.compareTo(a.updatedAt ?? 0) ?? -1,
-    );
+    rooms.sort((a, b) => b.updatedAt?.compareTo(a.updatedAt ?? 0) ?? -1);
     return rooms;
   }
 
   /// Returns a stream of rooms updates from Supabase. Only rooms where current
   /// logged in user exist are returned.
-  Stream<List<types.Room>> roomsUpdates() {
+  Stream<List<ChatRoom>> roomsUpdates() {
     final fu = loggedSupabaseUser;
     if (fu == null) return const Stream.empty();
-    final controller = StreamController<List<types.Room>>();
-    final roomsList = <types.Room>[];
+    final controller = StreamController<List<ChatRoom>>();
+    final roomsList = <ChatRoom>[];
 
     Future<void> onData(List<Map<String, dynamic>> data) async {
-      for (var val in data) {
-        final newRoom = await processRoomRow(
-          val,
-          fu,
-          client,
-          config.usersTableName,
-          config.schema,
-        );
-        final index = roomsList.indexWhere((room) => room.id == newRoom.id);
-        if (index != -1) {
-          roomsList[index] = newRoom;
-        } else {
-          roomsList.add(newRoom);
+      try {
+        for (var val in data) {
+          final newRoom = await processRoomRow(
+            val,
+            fu,
+            client,
+            config.usersTableName,
+            config.schema,
+          );
+          final index = roomsList.indexWhere((room) => room.id == newRoom.id);
+          if (index != -1) {
+            roomsList[index] = newRoom;
+          } else {
+            roomsList.add(newRoom);
+          }
         }
+        controller.sink.add(roomsList);
+      } catch (e, st) {
+        controller.sink.addError(_mapError('roomsUpdates', e, st));
       }
-      controller.sink.add(roomsList);
     }
 
     client
@@ -434,45 +516,26 @@ class SupabaseChatCore {
     return controller.stream;
   }
 
-  /// Sends a message to the Supabase. Accepts any partial message and a
-  /// room ID. If arbitrary data is provided in the [partialMessage]
-  /// does nothing.
-  Future<void> sendMessage(dynamic partialMessage, String roomId) async {
-    if (loggedSupabaseUser == null) return;
-
-    types.Message? message;
-
-    if (partialMessage is types.PartialCustom) {
-      message = types.CustomMessage.fromPartial(
-        author: types.User(id: loggedSupabaseUser!.id),
-        id: '',
-        partialCustom: partialMessage,
-      );
-    } else if (partialMessage is types.PartialFile) {
-      message = types.FileMessage.fromPartial(
-        author: types.User(id: loggedSupabaseUser!.id),
-        id: '',
-        partialFile: partialMessage,
-      );
-    } else if (partialMessage is types.PartialImage) {
-      message = types.ImageMessage.fromPartial(
-        author: types.User(id: loggedSupabaseUser!.id),
-        id: '',
-        partialImage: partialMessage,
-      );
-    } else if (partialMessage is types.PartialText) {
-      message = types.TextMessage.fromPartial(
-        author: types.User(id: loggedSupabaseUser!.id),
-        id: '',
-        partialText: partialMessage,
+  /// Sends [message] to a room identified by [roomId]. Build [message] with
+  /// one of `flutter_chat_core`'s `Message` factories (`Message.text`,
+  /// `Message.image`, ...) and your own `id` (e.g. `const Uuid().v7()`) —
+  /// `authorId` and `createdAt` are set by this method and don't need to be
+  /// filled in [message]. Stores [message]'s `id` as-is, so a caller doing
+  /// optimistic UI (see `SupabaseChatController.sendMessage`) gets the exact
+  /// same row back from Realtime instead of a second, differently-id'd one.
+  Future<void> sendMessage(core.Message message, String roomId) async {
+    final su = loggedSupabaseUser;
+    if (su == null) {
+      throw const SupabaseChatCoreAuthException(
+        'sendMessage requires a logged-in user',
       );
     }
 
-    if (message != null) {
-      final messageMap = message.toJson();
-      messageMap.removeWhere((key, value) => key == 'author' || key == 'id');
+    return _guard('sendMessage', () async {
+      final messageMap = messageToRow(message);
+      messageMap['id'] = message.id;
       messageMap['roomId'] = roomId;
-      messageMap['authorId'] = loggedSupabaseUser!.id;
+      messageMap['authorId'] = su.id;
       messageMap['createdAt'] = DateTime.now().millisecondsSinceEpoch;
       messageMap['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
 
@@ -484,118 +547,107 @@ class SupabaseChatCore {
       await client
           .schema(config.schema)
           .from(config.roomsTableName)
-          .update({'updatedAt': DateTime.now().millisecondsSinceEpoch}).eq(
-        'id',
-        roomId,
-      );
-    }
+          .update({'updatedAt': DateTime.now().millisecondsSinceEpoch})
+          .eq('id', roomId);
+    });
   }
 
   /// Updates a message in the Supabase. Accepts any message and a
-  /// room ID. Message will probably be taken from the [messages] stream.
-  Future<void> updateMessage(types.Message message, String roomId) async {
-    //if (supabaseUser == null) return;
-    //if (message.author.id != supabaseUser!.id) return;
+  /// room ID. Message will probably be taken from the controller's
+  /// `messages` list.
+  Future<void> updateMessage(core.Message message, String roomId) =>
+      _guard('updateMessage', () async {
+        final messageMap = messageToRow(message);
+        messageMap['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
 
-    final messageMap = message.toJson();
-    messageMap.removeWhere(
-      (key, value) => key == 'author' || key == 'createdAt' || key == 'id',
-    );
-    //messageMap['authorId'] = message.author.id;
-    messageMap['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
-
-    await client
-        .schema(config.schema)
-        .from(config.messagesTableName)
-        .update(messageMap)
-        .eq('roomId', roomId)
-        .eq('id', message.id);
-  }
+        await client
+            .schema(config.schema)
+            .from(config.messagesTableName)
+            .update(messageMap)
+            .eq('roomId', roomId)
+            .eq('id', message.id);
+      });
 
   /// Updates a room in the Supabase. Accepts any room.
   /// Room will probably be taken from the [rooms] stream.
-  Future<void> updateRoom(types.Room room) async {
-    if (loggedSupabaseUser == null) return;
-
-    final roomMap = room.toJson();
-    roomMap.removeWhere(
-      (key, value) =>
-          key == 'createdAt' ||
-          key == 'id' ||
-          key == 'lastMessages' ||
-          key == 'users',
-    );
-
-    if (room.type == types.RoomType.direct) {
-      roomMap['imageUrl'] = null;
-      roomMap['name'] = null;
+  Future<void> updateRoom(ChatRoom room) async {
+    if (loggedSupabaseUser == null) {
+      throw const SupabaseChatCoreAuthException(
+        'updateRoom requires a logged-in user',
+      );
     }
 
-    roomMap['lastMessages'] = room.lastMessages?.map((m) {
-      final messageMap = m.toJson();
+    return _guard('updateRoom', () async {
+      final isDirect = room.type == ChatRoomType.direct;
 
-      messageMap.removeWhere(
-        (key, value) =>
-            key == 'author' ||
-            key == 'createdAt' ||
-            key == 'id' ||
-            key == 'updatedAt',
-      );
+      final roomMap = <String, dynamic>{
+        'imageUrl': isDirect ? null : room.imageUrl,
+        'metadata': room.metadata,
+        'name': isDirect ? null : room.name,
+        'type': room.type.name,
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+        'userIds': room.users.map((u) => u.id).toList(),
+        'userRoles': room.users.fold<Map<String, String?>>(
+          {},
+          (previousValue, user) => {...previousValue, user.id: user.role?.name},
+        ),
+      };
 
-      messageMap['authorId'] = m.author.id;
+      final lastMessages = room.lastMessages;
+      if (lastMessages != null) {
+        roomMap['lastMessages'] = lastMessages.map((m) {
+          final messageMap = messageToRow(m);
+          messageMap['id'] = m.id;
+          messageMap['authorId'] = m.authorId;
+          messageMap['createdAt'] = m.createdAt?.millisecondsSinceEpoch;
+          return messageMap;
+        }).toList();
+      }
 
-      return messageMap;
-    }).toList();
-    roomMap['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
-    roomMap['userIds'] = room.users.map((u) => u.id).toList();
-
-    await client
-        .schema(config.schema)
-        .from(config.roomsTableName)
-        .update(roomMap)
-        .eq('id', room.id);
+      await client
+          .schema(config.schema)
+          .from(config.roomsTableName)
+          .update(roomMap)
+          .eq('id', room.id);
+    });
   }
 
   /// Returns a paginated list of users from Supabase.
-  Future<List<types.User>> users({
+  Future<List<ChatUser>> users({
     String? filter,
     int? offset = 0,
     int? limit = 20,
   }) async {
     if (loggedSupabaseUser == null) return const [];
-    final table = client.schema(config.schema).from(config.usersTableName);
+    return _guard('users', () async {
+      final table = client.schema(config.schema).from(config.usersTableName);
 
-    final queryUnlimited = filter != null && filter != ''
-        ? table.select().or(
+      final queryUnlimited = filter != null && filter != ''
+          ? table.select().or(
               'or(firstName.ilike.%$filter%,lastName.ilike.%$filter%)',
             )
-        : table.select();
-    var query = queryUnlimited
-        .order('firstName', ascending: true)
-        .order('lastName', ascending: true);
-    if (offset != null && limit != null) {
-      query = query.range(offset, offset + limit);
-    } else if (limit != null) {
-      query = query.limit(limit);
-    }
-    final response = await query;
-    return response
-        .map(
-          (e) => types.User.fromJson(e),
-        )
-        .toList();
+          : table.select();
+      var query = queryUnlimited
+          .order('firstName', ascending: true)
+          .order('lastName', ascending: true);
+      if (offset != null && limit != null) {
+        query = query.range(offset, offset + limit);
+      } else if (limit != null) {
+        query = query.limit(limit);
+      }
+      final response = await query;
+      return response.map((e) => ChatUser.fromJson(e)).toList();
+    });
   }
 
   /// Returns a user from Supabase.
-  Future<types.User?> user({
-    required String uid,
-  }) async {
+  Future<ChatUser?> user({required String uid}) => _guard('user', () async {
     final response = await client
         .schema(config.schema)
         .from(config.usersTableName)
         .select()
         .eq('id', uid)
         .limit(1);
-    return response.isNotEmpty ? types.User.fromJson(response.first) : null;
-  }
+    return response.isNotEmpty ? ChatUser.fromJson(response.first) : null;
+  });
 }

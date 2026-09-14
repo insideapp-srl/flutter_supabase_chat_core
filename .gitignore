@@ -120,3 +120,8 @@ app.*.symbols
 
 # Test scripts files
 test-scripts
+
+# Supabase CLI local linking state (created by example/utils/supabase_prepare.*
+# via `supabase link`/`supabase db query --linked` -- see MIGRATION.md).
+# Disposable, machine-local, no secrets worth committing.
+/supabase/

@@ -10,31 +10,21 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
     url: supabaseOptions.url,
-    anonKey: supabaseOptions.anonKey,
+    publishableKey: supabaseOptions.anonKey,
   );
   runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({
-    super.key,
-  });
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-        title: 'Supabase Chat',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: lightColorScheme,
-        ),
-        darkTheme: ThemeData(
-          useMaterial3: true,
-          colorScheme: darkColorScheme,
-        ),
-        themeMode: ThemeMode.dark,
-        home: const UserOnlineStateObserver(
-          child: HomePage(),
-        ),
-      );
+    title: 'Supabase Chat',
+    debugShowCheckedModeBanner: false,
+    theme: ThemeData(useMaterial3: true, colorScheme: lightColorScheme),
+    darkTheme: ThemeData(useMaterial3: true, colorScheme: darkColorScheme),
+    themeMode: ThemeMode.dark,
+    home: const UserOnlineStateObserver(child: HomePage()),
+  );
 }

@@ -50,7 +50,7 @@ Security rules make use of some helper functions:
     $BODY$;
     
     DROP function if exists chats.is_chat_member;
-    CREATE OR REPLACE FUNCTION chats.is_chat_member(room_id bigint)
+    CREATE OR REPLACE FUNCTION chats.is_chat_member(room_id uuid)
         RETURNS boolean
         LANGUAGE 'plpgsql'
         COST 100
@@ -229,7 +229,7 @@ Security rules implemented:
     with check (
         bucket_id = 'chats_assets'
         and
-        chats.is_chat_member((storage.foldername(name))[1]::bigint));
+        chats.is_chat_member((storage.foldername(name))[1]::uuid));
     
     DROP policy IF EXISTS "storage.object_grant_read_auth_chats_assets"
         ON storage.objects;
@@ -238,7 +238,7 @@ Security rules implemented:
     using (
         bucket_id = 'chats_assets'
         and
-        chats.is_chat_member((storage.foldername(name))[1]::bigint));
+        chats.is_chat_member((storage.foldername(name))[1]::uuid));
     
     DROP policy IF EXISTS "storage.object_grant_update_auth_chats_assets"
         ON storage.objects;
@@ -247,11 +247,11 @@ Security rules implemented:
     using (
         bucket_id = 'chats_assets'
         and
-        chats.is_chat_member((storage.foldername(name))[1]::bigint))
+        chats.is_chat_member((storage.foldername(name))[1]::uuid))
     with check (
         bucket_id = 'chats_assets'
         and
-        chats.is_chat_member((storage.foldername(name))[1]::bigint));
+        chats.is_chat_member((storage.foldername(name))[1]::uuid));
     
     DROP policy IF EXISTS "storage.object_grant_delete_auth_chats_assets"
         ON storage.objects;
@@ -260,7 +260,7 @@ Security rules implemented:
     using (
         bucket_id = 'chats_assets'
         and
-        chats.is_chat_member((storage.foldername(name))[1]::bigint));
+        chats.is_chat_member((storage.foldername(name))[1]::uuid));
 ```
 
 ### Bucket `chats_user_avatar`

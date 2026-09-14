@@ -22,7 +22,7 @@ We use [Supabase](https://supabase.com/docs) as the backend. There we have three
 
 Both array of participant IDs in the `room` and rows in `users` tables use `User UID` from [Supabase Authentication](https://supabase.com/docs/guides/auth) as an ID, for easier navigation through the data. That means every user of the chat should be registered using Supabase's authentication module, but if your app doesn't use Supabase as an authentication provider, you still can register in Supabase by providing your `JWT` token, so you can have your backend working together with a chat on Supabase (in this case it will be necessary to remove the trigger that inserts users).
 
-[Postgres Triggers](https://supabase.com/docs/guides/database/postgres/triggers) can be used for setting message's statuses and for triggering push notifications. In this documentation, you will see an [example](../guides/supabse-trigges.md) of setting `delivered` message status.
+[Postgres Triggers](https://supabase.com/docs/guides/database/postgres/triggers) can be used for setting message's statuses and for triggering push notifications. In this documentation, you will see an [example](../guides/supabse-trigges.md) of setting `sent` message status.
 
 [Supabase Storage](https://supabase.com/docs/guides/storage) can be used as a storage provider for images and files.
 

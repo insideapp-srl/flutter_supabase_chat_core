@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
+import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
 
-extension MessageStatusEx on types.Status {
+extension MessageStatusEx on core.MessageStatus {
   IconData get icon {
     switch (this) {
-      case types.Status.delivered:
+      case core.MessageStatus.delivered:
         return Icons.done_all;
-      case types.Status.error:
+      case core.MessageStatus.error:
         return Icons.error_outline;
-      case types.Status.seen:
+      case core.MessageStatus.seen:
         return Icons.done_all;
-      case types.Status.sending:
+      case core.MessageStatus.sending:
         return Icons.timelapse;
-      case types.Status.sent:
+      case core.MessageStatus.sent:
         return Icons.done;
     }
   }
