@@ -1,14 +1,14 @@
 <br>
 
 <p align="center">
-  <a href="https://pub.dartlang.org/packages/flutter_supabase_chat_core">
-    <img alt="Pub" src="https://img.shields.io/pub/v/flutter_supabase_chat_core" />
+  <a href="https://pub.dev/packages/flutter_supabase_chat_core">
+    <img alt="Pub version" src="https://img.shields.io/pub/v/flutter_supabase_chat_core" />
   </a>
   <a href="https://pub.dev/packages/flutter_supabase_chat_core/score">
-    <img alt="Pub" src="https://img.shields.io/pub/points/flutter_supabase_chat_core" />
+    <img alt="Pub points" src="https://img.shields.io/pub/points/flutter_supabase_chat_core" />
   </a>
   <a href="https://pub.dev/packages/flutter_supabase_chat_core/score">
-    <img alt="Pub" src="https://img.shields.io/pub/likes/flutter_supabase_chat_core" />
+    <img alt="Pub likes" src="https://img.shields.io/pub/likes/flutter_supabase_chat_core" />
   </a>
   <a href="https://www.codefactor.io/repository/github/insideapp-srl/flutter_supabase_chat_core">
     <img alt="CodeFactor" src="https://www.codefactor.io/repository/github/insideapp-srl/flutter_supabase_chat_core/badge" />
@@ -16,13 +16,13 @@
 </p>
 <p align="center">
   <a href="https://github.com/insideapp-srl/flutter_supabase_chat_core">
-    <img alt="Pub" src="https://img.shields.io/static/v1?label=flutter&message=flutter_supabase_chat_core&color=red??style=for-the-badge&logo=GitHub" />
+    <img alt="GitHub repository" src="https://img.shields.io/static/v1?label=flutter&message=flutter_supabase_chat_core&color=red&logo=GitHub" />
   </a>
   <a href="https://github.com/insideapp-srl/flutter_supabase_chat_core/issues">
-    <img alt="Build Status" src="https://img.shields.io/github/issues/insideapp-srl/flutter_supabase_chat_core" />
+    <img alt="Open issues" src="https://img.shields.io/github/issues/insideapp-srl/flutter_supabase_chat_core" />
   </a>
   <a href="https://github.com/insideapp-srl/flutter_supabase_chat_core/blob/main/LICENSE">
-    <img alt="CodeFactor" src="https://img.shields.io/github/license/insideapp-srl/flutter_supabase_chat_core" />
+    <img alt="License" src="https://img.shields.io/github/license/insideapp-srl/flutter_supabase_chat_core" />
   </a>
 </p>
 
