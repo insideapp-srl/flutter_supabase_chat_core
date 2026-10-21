@@ -10,9 +10,6 @@
   <a href="https://pub.dev/packages/flutter_supabase_chat_core/score">
     <img alt="Pub" src="https://img.shields.io/pub/likes/flutter_supabase_chat_core" />
   </a>
-  <a href="https://github.com/insideapp-srl/flutter_supabase_chat_core/actions?query=workflow%3Abuild">
-    <img alt="Build Status" src="https://github.com/insideapp-srl/flutter_supabase_chat_core/workflows/build/badge.svg" />
-  </a>
   <a href="https://www.codefactor.io/repository/github/insideapp-srl/flutter_supabase_chat_core">
     <img alt="CodeFactor" src="https://www.codefactor.io/repository/github/insideapp-srl/flutter_supabase_chat_core/badge" />
   </a>
