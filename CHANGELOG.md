@@ -64,6 +64,13 @@ one (maintenance window required).
 * The example pins `flutter_chat_ui: '>=2.11.1 <2.12.0'` (2.12.0 crashes
   inside a standard `Scaffold`).
 
+## [1.6.2] - 2026-03-31
+#### [@rickypid](https://github.com/rickypid)
+
+### Fixed
+
+* Update Docusaurus dependencies to 3.9.2.
+
 ## [1.6.1] - 2026-03-09
 #### [@rickypid](https://github.com/rickypid)
 
