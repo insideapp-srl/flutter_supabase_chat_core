@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
     title: 'Flutter Supabase Chat Core',
-    tagline: 'Dinosaurs are cool',
+    tagline: 'Real-time chat for Flutter on Supabase',
     favicon: 'img/favicon.ico',
 
     // Set the production url of your site here
@@ -20,6 +20,17 @@ const config: Config = {
 
     onBrokenLinks: 'throw',
     onBrokenMarkdownLinks: 'warn',
+
+    headTags: [
+        {
+            tagName: 'link',
+            attributes: {
+                rel: 'apple-touch-icon',
+                sizes: '180x180',
+                href: '/img/apple-touch-icon.png',
+            },
+        },
+    ],
 
     // Even if you don't use internationalization, you can use this field to set
     // useful metadata like html lang. For example, if your site is Chinese, you
@@ -48,7 +59,7 @@ const config: Config = {
     ],
 
     themeConfig: {
-        // Replace with your project's social card
+        // Link preview image (example app screenshot).
         image: 'img/social-card.png',
         colorMode: {
             defaultMode: 'dark',
@@ -56,10 +67,11 @@ const config: Config = {
             respectPrefersColorScheme: false,
         },
         navbar: {
-            title: 'Flutter Supabase Chat Core',
+            title: 'Supabase Chat Core',
             logo: {
                 alt: 'Flyer Chat Logo',
-                src: 'img/logo.svg',
+                src: 'img/flyer-chat-logo-dark.svg',
+                srcDark: 'img/flyer-chat-logo-light.svg',
             },
             items: [
                 {
@@ -103,15 +115,6 @@ const config: Config = {
                         {
                             label: 'GitHub',
                             href: 'https://github.com/insideapp-srl/flutter_supabase_chat_core',
-                        },
-                    ],
-                },
-                {
-                    title: 'More',
-                    items: [
-                        {
-                            label: 'Blog',
-                            to: 'https://blog.insideapp.it/',
                         },
                     ],
                 },

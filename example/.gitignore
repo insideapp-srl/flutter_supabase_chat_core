@@ -45,3 +45,4 @@ app.*.map.json
 
 /lib/supabase_options_for_test.dart
 /lib/main_test.dart
+/utils/project-secrets.local.json

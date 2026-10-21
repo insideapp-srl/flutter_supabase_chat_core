@@ -24,6 +24,11 @@ jobs:
       - name: Analyze project source
         run: flutter analyze --no-pub
 
+      # Unit tests only: the integration tests (tag `integration`) need a
+      # running Supabase stack, see tool/test_integration.sh.
+      - name: Run unit tests
+        run: flutter test --no-pub --exclude-tags integration
+
       - name: Install pana
         run: dart pub global activate pana
 

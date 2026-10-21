@@ -8,23 +8,39 @@ Have you ever wanted to implement a chat in your application? Do you think it's 
 
 Try this, thanks to the magnificent [Supabase](https://supabase.com/) platform and the [Flutter Chat UI](https://pub.dev/packages/flutter_chat_ui) package, you can achieve it in just a few minutes and effortlessly.
 
+![Demo: real-time messages, reactions, replies and voice messages](/img/demo.gif)
+
 ---
 
-Flyer Chat is a platform for creating in-app chat experiences using Flutter or React Native. This is the documentation for Supabase BaaS implementation for Flutter.
+Flyer Chat is a platform for creating in-app chat experiences using Flutter. This is the documentation of `flutter_supabase_chat_core`, the [Supabase](https://supabase.com/docs) backend for [`flutter_chat_core`](https://pub.dev/packages/flutter_chat_core) and [`flutter_chat_ui`](https://pub.dev/packages/flutter_chat_ui) 2.x.
 
-## How it works?
+:::info
+Coming from 1.x (`flutter_chat_types`)? 2.0 changes both the Dart API and the database schema: read [MIGRATION.md](https://github.com/insideapp-srl/flutter_supabase_chat_core/blob/main/MIGRATION.md).
+:::
 
-We use [Supabase](https://supabase.com/docs) as the backend. There we have three tables, `rooms`, `messages` and `users`. Let's break them down:
+## How it works
 
-* `rooms` table contains all conversations in your app. [Postgres Row Security Level](https://supabase.com/docs/guides/database/postgres/row-level-security) are responsible for showing only those rooms where the user's in. The room contains some metadata, a participants list and other room information.
-* `messages` table contains all messages in your app. [Postgres Row Security Level](https://supabase.com/docs/guides/database/postgres/row-level-security) are responsible for showing only those messages of the rooms where the user's in. The massage contains all message data.
-* `users` table contains users data, such as avatars and names. You can use this collection to render a list of users available for chat. This table is populate automatically by trigger.
+Everything lives in a dedicated `chats` Postgres schema, protected by [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security):
 
-Both array of participant IDs in the `room` and rows in `users` tables use `User UID` from [Supabase Authentication](https://supabase.com/docs/guides/auth) as an ID, for easier navigation through the data. That means every user of the chat should be registered using Supabase's authentication module, but if your app doesn't use Supabase as an authentication provider, you still can register in Supabase by providing your `JWT` token, so you can have your backend working together with a chat on Supabase (in this case it will be necessary to remove the trigger that inserts users).
+* `chats.users` holds the chat profiles (names, avatar, last seen). A row is created by a trigger for every Supabase Auth user, so every chat user must be registered with [Supabase Authentication](https://supabase.com/docs/guides/auth) (or a third-party auth provider configured in Supabase) and `chats.users.id` matches `auth.users.id`.
+* `chats.rooms` holds the conversations: `direct` (1-to-1) or `group`, with a name, an avatar, custom metadata and a snapshot of the last message.
+* `chats.room_members` links users to rooms, with a per-room `role` (`admin`, `moderator` or none) and the member's own state: when they last read the room, whether they pinned or muted it.
+* `chats.messages` holds the messages, with the same field names as `flutter_chat_core`'s `Message`. It is partitioned by week to stay fast as history grows.
 
-[Postgres Triggers](https://supabase.com/docs/guides/database/postgres/triggers) can be used for setting message's statuses and for triggering push notifications. In this documentation, you will see an [example](../guides/supabse-trigges.md) of setting `delivered` message status.
+Two views, `chats.rooms_l` and `chats.messages_l`, are what the client reads: `rooms_l` adds the members, the caller's unread count and preferences, and the other member's name for direct rooms.
 
-[Supabase Storage](https://supabase.com/docs/guides/storage) can be used as a storage provider for images and files.
+Writes that touch other people's rows (creating a room with its members, read receipts, reactions, pins) go through `SECURITY DEFINER` functions that check membership themselves. See [Security Rules](../guides/supabase-security-rls.md).
+
+[Supabase Realtime](https://supabase.com/docs/guides/realtime) keeps the UI live: message changes travel on a private Broadcast channel per room, sent by a database trigger; the rooms list follows Postgres Changes; online status uses Presence. See [Realtime](../guides/supabase-realtime.md).
+
+[Supabase Storage](https://supabase.com/docs/guides/storage) holds attachments (`chats_assets`, one folder per room) and avatars (`chats_user_avatar`, one folder per user), both private buckets.
+
+On the Flutter side, the package provides:
+
+* `SupabaseChatCore`: rooms, members, users, messages, uploads and presence;
+* `SupabaseChatRoomsController`: a live, paginated rooms list;
+* `SupabaseChatController`: a `flutter_chat_core` `ChatController` for one room, to pass to `flutter_chat_ui`'s `Chat`;
+* `UserOnlineStateObserver` and `UserOnlineStatusWidget` for online status.
 
 ## Motivation
 

@@ -31,10 +31,12 @@ const sidebars: SidebarsConfig = {
       label: 'Guides',
       items: [
           'guides/supabase-usage',
+          'guides/supabase-realtime',
           'guides/supabase-security',
           'guides/supabase-triggers',
           'guides/supabase-views',
           'guides/supabase-indexes',
+          'guides/testing',
       ],
     },
   ],
