@@ -1,40 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'src/pages/home.dart';
-import 'src/theme/color_schemes.dart';
+import 'src/app.dart';
 import 'supabase_options.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
     url: supabaseOptions.url,
-    anonKey: supabaseOptions.anonKey,
+    publishableKey: supabaseOptions.anonKey,
   );
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) => MaterialApp(
-        title: 'Supabase Chat',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: lightColorScheme,
-        ),
-        darkTheme: ThemeData(
-          useMaterial3: true,
-          colorScheme: darkColorScheme,
-        ),
-        themeMode: ThemeMode.dark,
-        home: const UserOnlineStateObserver(
-          child: HomePage(),
-        ),
-      );
+  runApp(const ChatExampleApp());
 }

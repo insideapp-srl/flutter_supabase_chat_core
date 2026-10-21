@@ -1,0 +1,5 @@
+tags:
+  integration:
+    # Needs a running Supabase stack with the chat schema applied, see
+    # tool/test_integration.sh. Realtime round trips take a while.
+    timeout: 2x

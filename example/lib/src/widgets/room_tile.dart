@@ -1,132 +1,224 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_chat_types/flutter_chat_types.dart' as types;
+import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
-import 'package:timeago/timeago.dart' as timeago;
 
-import '../class/message_status_ex.dart';
-import '../util.dart';
+import '../utils/format.dart';
+import 'user_avatar.dart';
 
+/// One conversation in the chats list, Telegram style: avatar (with online
+/// dot for direct chats), name (+ muted icon), last message with sender
+/// prefix and read ticks, time, and an unread badge — grey when muted — or
+/// a pin for pinned chats.
 class RoomTile extends StatelessWidget {
-  final types.Room room;
-  final ValueChanged<types.Room> onTap;
-
   const RoomTile({
     super.key,
     required this.room,
+    required this.currentUserId,
     required this.onTap,
+    this.onLongPress,
+    this.selected = false,
   });
 
-  Widget _buildAvatar(types.Room room) {
-    final color = getAvatarColor(room.id);
-    var otherUserIndex = -1;
-    types.User? otherUser;
+  final ChatRoom room;
+  final String currentUserId;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final bool selected;
 
-    if (room.type == types.RoomType.direct) {
-      otherUserIndex = room.users.indexWhere(
-        (u) => u.id != SupabaseChatCore.instance.loggedSupabaseUser!.id,
-      );
-      if (otherUserIndex >= 0) {
-        otherUser = room.users[otherUserIndex];
-      }
-    }
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final last = room.lastMessage;
+    final preview = messagePreview(last);
+    final unread = room.unreadCount > 0;
+    final mine = last != null && last.authorId == currentUserId;
+    // "You: ..." for own messages, "<first name>: ..." in groups.
+    final prefix = last == null
+        ? null
+        : mine
+        ? 'You'
+        : room.type == ChatRoomType.group
+        ? room.member(last.authorId)?.firstName
+        : null;
 
-    final hasImage = room.imageUrl != null;
-    final name = room.name ?? '';
-    final Widget child = CircleAvatar(
-      backgroundColor: hasImage ? Colors.transparent : color,
-      backgroundImage: hasImage ? NetworkImage(room.imageUrl!) : null,
-      radius: 20,
-      child: !hasImage
-          ? Text(
-              name.isEmpty ? '' : name[0].toUpperCase(),
-              style: const TextStyle(color: Colors.white),
-            )
-          : null,
-    );
-    if (otherUser == null) {
-      return Padding(
-        padding: const EdgeInsets.only(right: 16),
-        child: child,
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.only(right: 16),
-      child: UserOnlineStatusWidget(
-        uid: otherUser.id,
-        builder: (status) => Stack(
-          alignment: Alignment.bottomRight,
-          children: [
-            child,
-            if (status == UserOnlineStatus.online)
-              Container(
-                width: 10,
-                height: 10,
-                margin: const EdgeInsets.only(
-                  right: 3,
-                  bottom: 3,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.green,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white,
-                    width: 2,
-                  ),
+    return Material(
+      color: selected
+          ? scheme.primary.withValues(alpha: .12)
+          : Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 7, 12, 7),
+          child: Row(
+            spacing: 12,
+            children: [
+              UserAvatar.room(room, currentUserId, size: 54),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  spacing: 2,
+                  children: [
+                    Row(
+                      spacing: 4,
+                      children: [
+                        // The name takes the free space, so status and time
+                        // always sit on the right edge.
+                        Expanded(
+                          child: Row(
+                            spacing: 4,
+                            children: [
+                              if (room.type == ChatRoomType.group)
+                                Icon(
+                                  Icons.group_rounded,
+                                  size: 16,
+                                  color: scheme.onSurface,
+                                ),
+                              Flexible(
+                                child: Text(
+                                  room.name ?? 'Unnamed',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              if (room.isMuted)
+                                Icon(
+                                  Icons.volume_off_rounded,
+                                  size: 15,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (mine) _StatusIcon(status: last.status),
+                        Text(
+                          formatListTime(
+                            context,
+                            last?.createdAt ?? room.updatedAt,
+                          ),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      spacing: 6,
+                      children: [
+                        Expanded(
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                if (prefix != null)
+                                  TextSpan(
+                                    text: '$prefix: ',
+                                    style: TextStyle(color: scheme.onSurface),
+                                  ),
+                                if (preview.icon != null)
+                                  WidgetSpan(
+                                    alignment: PlaceholderAlignment.middle,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(right: 3),
+                                      child: Icon(
+                                        preview.icon,
+                                        size: 15,
+                                        color: scheme.primary,
+                                      ),
+                                    ),
+                                  ),
+                                TextSpan(text: preview.text),
+                              ],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        if (unread)
+                          _Badge(count: room.unreadCount, muted: room.isMuted)
+                        else if (room.isPinned)
+                          Transform.rotate(
+                            angle: .7,
+                            child: Icon(
+                              Icons.push_pin_rounded,
+                              size: 16,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _Badge extends StatelessWidget {
+  const _Badge({required this.count, required this.muted});
+
+  final int count;
+  final bool muted;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-        key: ValueKey(room.id),
-        leading: _buildAvatar(room),
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(room.name ?? ''),
-            if (room.lastMessages?.isNotEmpty == true)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    timeago.format(
-                      DateTime.now().subtract(
-                        Duration(
-                          milliseconds: DateTime.now().millisecondsSinceEpoch -
-                              (room.updatedAt ?? 0),
-                        ),
-                      ),
-                      locale: 'en_short',
-                    ),
-                  ),
-                  if (room.lastMessages!.first.status != null)
-                    Padding(
-                      padding: const EdgeInsets.only(left: 8.0),
-                      child: Icon(
-                        size: 20,
-                        room.lastMessages!.first.status!.icon,
-                        color:
-                            room.lastMessages!.first.status == types.Status.seen
-                                ? Colors.lightBlue
-                                : null,
-                      ),
-                    ),
-                ],
-              ),
-          ],
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      constraints: const BoxConstraints(minWidth: 22),
+      height: 22,
+      padding: const EdgeInsets.symmetric(horizontal: 7),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: muted ? scheme.outline : scheme.primary,
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Text(
+        count >= 100 ? '99+' : '$count',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.w700,
         ),
-        subtitle: room.lastMessages?.isNotEmpty == true &&
-                room.lastMessages!.first is types.TextMessage
-            ? Text(
-                (room.lastMessages!.first as types.TextMessage).text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              )
-            : null,
-        onTap: () => onTap(room),
-      );
+      ),
+    );
+  }
+}
+
+class _StatusIcon extends StatelessWidget {
+  const _StatusIcon({required this.status});
+
+  final core.MessageStatus? status;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return switch (status) {
+      core.MessageStatus.seen => Icon(
+        Icons.done_all_rounded,
+        size: 16,
+        color: scheme.primary,
+      ),
+      core.MessageStatus.sending => Icon(
+        Icons.schedule_rounded,
+        size: 14,
+        color: scheme.onSurfaceVariant,
+      ),
+      core.MessageStatus.error => Icon(
+        Icons.error_outline_rounded,
+        size: 16,
+        color: scheme.error,
+      ),
+      _ => Icon(Icons.done_rounded, size: 16, color: scheme.primary),
+    };
+  }
 }
