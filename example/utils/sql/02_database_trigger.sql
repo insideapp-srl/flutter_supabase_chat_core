@@ -1,17 +1,29 @@
 
+-- Creates the chat profile of every new auth user. First/last name and
+-- avatar are taken from the sign-up metadata when present
+-- (`auth.signUp(data: {'first_name': ..., 'last_name': ..., 'avatar_url': ...})`,
+-- also the shape most OAuth providers fill in), so a profile is complete
+-- from the start without a second, separately-authorized update call.
 CREATE OR REPLACE FUNCTION chats.handle_new_user()
     RETURNS trigger
-    LANGUAGE 'plpgsql'
-    COST 100
-    VOLATILE NOT LEAKPROOF SECURITY DEFINER
-    SET search_path=public
+    LANGUAGE plpgsql
+    SECURITY DEFINER
     SET search_path = ''
 AS $BODY$
+DECLARE
+    meta jsonb := coalesce(new.raw_user_meta_data, '{}'::jsonb);
 BEGIN
-    insert into chats.users (id, "createdAt", "updatedAt", "lastSeen")
-    values (new.id, now(), now(), now());
-    return new;
-end;
+    INSERT INTO chats.users (id, "firstName", "lastName", "imageUrl", "createdAt", "updatedAt", "lastSeen")
+    VALUES (
+        new.id,
+        nullif(coalesce(meta ->> 'first_name', meta ->> 'firstName', meta ->> 'given_name'), ''),
+        nullif(coalesce(meta ->> 'last_name', meta ->> 'lastName', meta ->> 'family_name'), ''),
+        nullif(coalesce(meta ->> 'avatar_url', meta ->> 'picture'), ''),
+        now(), now(), now()
+    )
+    ON CONFLICT (id) DO NOTHING;
+    RETURN new;
+END;
 $BODY$;
 
 drop trigger if exists on_auth_user_created on auth.users;
@@ -20,8 +32,12 @@ create trigger on_auth_user_created
     for each row execute procedure chats.handle_new_user();
 
 
+-- Keeps chats.rooms."lastMessages"/"updatedAt" in sync with the room's
+-- newest message. SECURITY DEFINER: any member sends messages, but only
+-- room admins may update chats.rooms under RLS.
 CREATE OR REPLACE FUNCTION chats.update_last_messages()
     RETURNS TRIGGER
+    SECURITY DEFINER
     SET search_path = ''
 AS $$
 DECLARE
@@ -46,9 +62,15 @@ BEGIN
                 (SELECT "lastMessages" FROM chats.rooms WHERE id = affected_room_id)
                           ) LIMIT 1
     ) THEN
+        -- Only a new message moves the room up the list: edits, reactions
+        -- and read receipts (status -> seen) refresh the snapshot but keep
+        -- "updatedAt", or merely reading a chat would reorder everyone's
+        -- rooms list.
         UPDATE chats.rooms
-        SET "updatedAt" = now(),
-            "lastMessages" = jsonb_build_array(latest_message)
+        SET "updatedAt" = CASE WHEN TG_OP = 'INSERT' THEN now() ELSE "updatedAt" END,
+            "lastMessages" = CASE WHEN latest_message IS NULL
+                                  THEN NULL
+                                  ELSE jsonb_build_array(latest_message) END
         WHERE id = affected_room_id;
     END IF;
 
@@ -88,8 +110,10 @@ CREATE TRIGGER update_status_before_insert
 -- cleanup-media Edge Function (see supabase/functions/cleanup-media) to
 -- pick up and remove later, whenever a message referencing one is deleted.
 -- Deleting the message row itself still happens immediately, same as today.
+-- SECURITY DEFINER: chats.media_pending_deletion is closed to clients.
 CREATE OR REPLACE FUNCTION chats.queue_media_for_deletion()
     RETURNS TRIGGER
+    SECURITY DEFINER
     SET search_path = ''
 AS $$
 DECLARE
@@ -132,8 +156,11 @@ CREATE TRIGGER queue_media_for_deletion_trigger
 -- re-inserting the new set, all in one transaction -- an immediate trigger
 -- would see zero members mid-function and delete the room before the new
 -- members are even inserted.
+-- SECURITY DEFINER: the last member leaving is no longer a member (nor an
+-- admin) by the time this runs, so RLS would silently skip the delete.
 CREATE OR REPLACE FUNCTION chats.delete_room_if_empty()
     RETURNS TRIGGER
+    SECURITY DEFINER
     SET search_path = ''
 AS $$
 DECLARE
@@ -152,3 +179,52 @@ CREATE CONSTRAINT TRIGGER delete_room_if_empty_trigger
     AFTER DELETE ON chats.room_members
     DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW EXECUTE FUNCTION chats.delete_room_if_empty();
+
+-- Delivers every message change to the room's private Realtime channel
+-- (`chats:room:<roomId>`), where SupabaseChatController listens for it.
+--
+-- Broadcast from Database instead of Postgres Changes: chats.messages is
+-- partitioned, and Postgres Changes reports each row under the partition it
+-- physically lives in (chats.messages_p20261019, ...), so a subscription on
+-- chats.messages never matches anything. Broadcast also scales better (one
+-- message per change, authorized once at join time, instead of an RLS check
+-- per change per subscriber) and DELETE events keep the whole old row, so
+-- they can be routed to their room.
+--
+-- Who may join the channel is decided by the RLS policies on
+-- realtime.messages (03_database_policy.sql). Requires Realtime with
+-- Broadcast from Database support (Supabase cloud; self-hosted
+-- supabase/realtime >= v2.33).
+--
+-- A failure to broadcast must never lose the message itself: it is reported
+-- as a WARNING (visible in the Postgres logs) and the write goes through.
+CREATE OR REPLACE FUNCTION chats.broadcast_message_change()
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+    SET search_path = ''
+AS $$
+DECLARE
+    v_room_id uuid := coalesce(NEW."roomId", OLD."roomId");
+BEGIN
+    BEGIN
+        PERFORM realtime.broadcast_changes(
+            'chats:room:' || v_room_id::text,
+            TG_OP,
+            TG_OP,
+            'messages',
+            'chats',
+            NEW,
+            OLD
+        );
+    EXCEPTION WHEN OTHERS THEN
+        RAISE WARNING 'chats.broadcast_message_change: % (room %)', SQLERRM, v_room_id;
+    END;
+    RETURN NULL;
+END;
+$$;
+
+drop trigger if exists broadcast_message_change_trigger on chats.messages;
+CREATE TRIGGER broadcast_message_change_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON chats.messages
+    FOR EACH ROW EXECUTE FUNCTION chats.broadcast_message_change();

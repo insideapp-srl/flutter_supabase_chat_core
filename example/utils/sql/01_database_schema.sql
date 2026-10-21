@@ -55,9 +55,11 @@ SET row_security = off;
 -- counts, then drop them yourself once satisfied (oldest-dependency-first:
 -- messages_backup_* before rooms_backup_*/users_backup_*, since the old
 -- messages_roomId_fkey/messages_authorId_fkey constraints still point at
--- them). See MIGRATION.md for the full writeup, including the separate
--- storage-object move needed after a uuid conversion
--- (example/utils/migrate_storage_uuids.sh/.ps1).
+-- them). See MIGRATION.md for the full writeup. Attachments uploaded by v1
+-- keep their URLs (copied unchanged into chats.messages.source), which keep
+-- working: the storage policies also accept the old bigint room folders.
+-- example/utils/migrate_storage_uuids.sh/.ps1 then moves them to the uuid
+-- folders and drops chats.room_id_migration_map.
 --
 -- Run a migration during a maintenance window: the app must be compatible
 -- with the resulting shape before it runs against this database again.
@@ -92,6 +94,7 @@ CREATE OR REPLACE FUNCTION chats.uuid_generate_v7()
 RETURNS uuid
 LANGUAGE sql
 VOLATILE
+SET search_path = ''
 AS $$
     SELECT encode(
         set_bit(
@@ -118,6 +121,7 @@ $$;
 CREATE OR REPLACE FUNCTION chats.ensure_messages_partitions_rls()
 RETURNS void
 LANGUAGE plpgsql
+SET search_path = ''
 AS $$
 DECLARE
     r record;
@@ -130,6 +134,18 @@ BEGIN
           AND NOT c.relrowsecurity
     LOOP
         EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', r.partition);
+    END LOOP;
+    -- Partitions are only ever reached through chats.messages (and its
+    -- policies): drop the direct grants default privileges give them.
+    FOR r IN
+        SELECT c.oid::regclass AS partition
+        FROM pg_inherits i
+        JOIN pg_class c ON c.oid = i.inhrelid
+        WHERE i.inhparent = 'chats.messages'::regclass
+          AND (has_table_privilege('anon', c.oid, 'SELECT')
+               OR has_table_privilege('authenticated', c.oid, 'SELECT'))
+    LOOP
+        EXECUTE format('REVOKE ALL ON TABLE %s FROM anon, authenticated', r.partition);
     END LOOP;
 END;
 $$;
@@ -201,11 +217,9 @@ BEGIN
         -- Maps each old bigint room id to its freshly generated uuid, built
         -- before anything is renamed away. Reused below for room_members and
         -- chats.messages."roomId". Kept around (not temporary) after this
-        -- script finishes: storage objects under `chats_assets/<old room
-        -- id>/...` still need moving to `chats_assets/<new room id>/...` (a
-        -- separate step -- SQL alone can't rename objects in the storage
-        -- backend). See example/utils/migrate_storage_uuids.sh/.ps1 and
-        -- MIGRATION.md.
+        -- script finishes: the storage policies use it to authorize the v1
+        -- attachments still stored under `chats_assets/<old room id>/...`,
+        -- until migrate_storage_uuids.sh/.ps1 moves them and drops it.
         CREATE TABLE IF NOT EXISTS chats.room_id_migration_map (
             old_id bigint PRIMARY KEY,
             new_id uuid NOT NULL
@@ -245,7 +259,10 @@ BEGIN
 
         EXECUTE format($f$
             INSERT INTO chats.users ("firstName", "imageUrl", "lastName", metadata, role, id, "createdAt", "updatedAt", "lastSeen")
-            SELECT "firstName", "imageUrl", "lastName", metadata, role, id,
+            -- v1 accepted any role text ('agent', 'user', ...): only the
+            -- elevated roles survive, everything else is a plain member.
+            SELECT "firstName", "imageUrl", "lastName", metadata,
+                   CASE WHEN role IN ('admin', 'moderator') THEN role END, id,
                    to_timestamp("createdAt" / 1000.0), to_timestamp("updatedAt" / 1000.0), to_timestamp("lastSeen" / 1000.0)
             FROM chats.%I
         $f$, v_users_backup);
@@ -319,6 +336,9 @@ BEGIN
             "userId" uuid NOT NULL REFERENCES chats.users(id) ON DELETE CASCADE,
             role text,
             "createdAt" timestamptz NOT NULL DEFAULT now(),
+            "lastReadAt" timestamptz,
+            "pinnedAt" timestamptz,
+            "mutedUntil" timestamptz,
             PRIMARY KEY ("roomId", "userId")
         );
         ALTER TABLE chats.room_members OWNER TO postgres;
@@ -329,7 +349,8 @@ BEGIN
             RAISE NOTICE 'Populating chats.room_members from chats.%''s userIds/userRoles', v_rooms_backup;
             EXECUTE format($f$
                 INSERT INTO chats.room_members ("roomId", "userId", role)
-                SELECT m.new_id, u, r."userRoles" ->> u::text
+                SELECT m.new_id, u,
+                       CASE WHEN r."userRoles" ->> u::text IN ('admin', 'moderator') THEN r."userRoles" ->> u::text END
                 FROM chats.%I r
                 JOIN chats.room_id_migration_map m ON m.old_id = r.id,
                      unnest(r."userIds") AS u
@@ -337,6 +358,23 @@ BEGIN
             $f$, v_rooms_backup);
         END IF;
     END IF;
+
+    -- Columns/indexes added after the first v2 draft: applied unconditionally
+    -- (and idempotently) so a database bootstrapped from an earlier v2 draft
+    -- of this script catches up too, not just fresh installs and v1
+    -- migrations.
+    --
+    -- "lastReadAt": when the member last marked the room as read
+    -- (chats.mark_room_as_read), drives rooms_l."unreadCount".
+    ALTER TABLE chats.room_members ADD COLUMN IF NOT EXISTS "lastReadAt" timestamptz;
+    -- Per-member preferences: "pinnedAt" keeps the room on top of the
+    -- member's list (chats.pin_room), "mutedUntil" silences it until then
+    -- (chats.mute_room; 'infinity' for ever). Only the member sees them.
+    ALTER TABLE chats.room_members ADD COLUMN IF NOT EXISTS "pinnedAt" timestamptz;
+    ALTER TABLE chats.room_members ADD COLUMN IF NOT EXISTS "mutedUntil" timestamptz;
+    -- Room list / membership lookups by user (the primary key only covers
+    -- lookups by room).
+    CREATE INDEX IF NOT EXISTS "room_members_userId_idx" ON chats.room_members USING btree ("userId");
 
     -- Constrain role to the values ChatRoomRole knows about (NULL = plain
     -- member/user, no elevated role). A CHECK constraint rather than a
@@ -400,7 +438,6 @@ BEGIN
             ADD CONSTRAINT "messages_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES chats.rooms(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
         CREATE INDEX ON chats.messages USING btree ("authorId");
-        CREATE INDEX ON chats.messages USING btree ("roomId");
 
         ALTER TABLE chats.messages ENABLE ROW LEVEL SECURITY;
         ALTER PUBLICATION supabase_realtime ADD TABLE chats.messages;
@@ -409,6 +446,14 @@ BEGIN
 
     ELSIF v_is_v1 THEN
         RAISE NOTICE 'Migrating chats.messages (v1 columns, bigint id, epoch-ms dates) to v2 shape';
+
+        -- The v1 triggers on this table (last message snapshot, ...) still
+        -- expect bigint room ids, but chats.rooms is already uuid at this
+        -- point: any UPDATE below would fire them and fail. Disable them for
+        -- good -- this table only survives as the messages_backup_* copy,
+        -- and 02_database_trigger.sql recreates every trigger on the new
+        -- chats.messages.
+        ALTER TABLE chats.messages DISABLE TRIGGER USER;
 
         -- v1 (flutter_chat_types) column renames, done in place before the
         -- rebuild below so the copy-back SELECT can just name the v2 columns
@@ -431,7 +476,18 @@ BEGIN
         -- created below (never on the final chats.messages) — nothing to
         -- drop here.
 
-        SELECT to_timestamp(MIN("createdAt") / 1000.0) INTO v_start_ts FROM chats.messages;
+        -- Weekly partitions only from a few weeks back: older history lands
+        -- in pg_partman's default partition (chats.messages_default) instead
+        -- of one partition per week since the very first message -- years of
+        -- history would otherwise mean hundreds of partitions, each one
+        -- scanned by every per-room query (they filter by room, not by
+        -- date). Split it later with partman.partition_data_proc() if you
+        -- want it partitioned too.
+        SELECT LEAST(
+                   to_timestamp(MIN("createdAt") / 1000.0),
+                   date_trunc('week', now()) - interval '4 weeks'
+               ) INTO v_start_ts FROM chats.messages;
+        v_start_ts := GREATEST(v_start_ts, date_trunc('week', now()) - interval '4 weeks');
 
         -- Can't ALTER this table into the partitioned/uuid/timestamptz shape
         -- in place: rename it out of the way, create the new table, then
@@ -475,7 +531,6 @@ BEGIN
             ADD CONSTRAINT "messages_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES chats.rooms(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
         CREATE INDEX ON chats.messages USING btree ("authorId");
-        CREATE INDEX ON chats.messages USING btree ("roomId");
 
         ALTER TABLE chats.messages ENABLE ROW LEVEL SECURITY;
 
@@ -524,12 +579,33 @@ BEGIN
     IF v_messages_backup IS NOT NULL THEN
         EXECUTE format($f$
             INSERT INTO chats.messages (id, "createdAt", metadata, duration, "mimeType", name, "replyToMessageId", "roomId", size, status, type, "updatedAt", source, waveform, height, width, "linkPreviewData", "authorId", text, reactions, pinned)
-            SELECT chats.uuid_generate_v7(), to_timestamp(m."createdAt" / 1000.0), m.metadata, m.duration, m."mimeType", m.name, m."replyToMessageId", rm.new_id, m.size, m.status, m.type,
+            SELECT chats.uuid_generate_v7(), to_timestamp(m."createdAt" / 1000.0), m.metadata, m.duration, m."mimeType", m.name, NULL, rm.new_id, m.size, m.status, m.type,
                    CASE WHEN m."updatedAt" IS NULL THEN NULL ELSE to_timestamp(m."updatedAt" / 1000.0) END,
                    m.source, m.waveform, m.height, m.width, m."linkPreviewData", m."authorId", m.text, m.reactions, m.pinned
             FROM chats.%I m
             JOIN chats.room_id_migration_map rm ON rm.old_id = m."roomId"
         $f$, v_messages_backup);
+
+        -- Replies pointed at bigint message ids: map them to the new ids
+        -- (a message is identified by room, author and creation time).
+        -- Replies to a message that no longer exists stay NULL.
+        EXECUTE format($f$
+            WITH ids AS (
+                SELECT old.id AS old_id, new.id AS new_id
+                FROM chats.%I old
+                JOIN chats.room_id_migration_map rm ON rm.old_id = old."roomId"
+                JOIN chats.messages new
+                  ON new."roomId" = rm.new_id
+                 AND new."authorId" = old."authorId"
+                 AND new."createdAt" = to_timestamp(old."createdAt" / 1000.0)
+            )
+            UPDATE chats.messages m
+            SET "replyToMessageId" = target.new_id::text
+            FROM chats.%I old
+            JOIN ids src ON src.old_id = old.id
+            JOIN ids target ON target.old_id::text = old."replyToMessageId"
+            WHERE m.id = src.new_id AND old."replyToMessageId" IS NOT NULL
+        $f$, v_messages_backup, v_messages_backup);
 
         -- Publication membership followed the rename onto the backup table
         -- (tracked by relation, not by name) — move it back onto
@@ -545,6 +621,69 @@ BEGIN
         ALTER PUBLICATION supabase_realtime ADD TABLE chats.messages;
 
         RAISE NOTICE 'chats.% kept as a backup of the pre-migration messages table — verify row counts match, then drop it yourself once satisfied.', v_messages_backup;
+
+        -- chats.rooms."lastMessages" still holds v1-shaped snapshots (uri,
+        -- bigint ids...): rebuild them from the migrated messages, leaving
+        -- "updatedAt" (the room list order) untouched.
+        UPDATE chats.rooms r
+        SET "lastMessages" = (
+            SELECT jsonb_build_array(to_jsonb(m))
+            FROM chats.messages m
+            WHERE m."roomId" = r.id
+            ORDER BY m."createdAt" DESC
+            LIMIT 1
+        );
+
+        -- Members already read everything that existed before the
+        -- migration: don't flood them with unread badges.
+        UPDATE chats.room_members SET "lastReadAt" = now() WHERE "lastReadAt" IS NULL;
+    END IF;
+
+    -- Message pagination (newest first, per room), the last-message trigger
+    -- and rooms_l."unreadCount" all filter by room and order/compare by
+    -- "createdAt": one composite index serves all three. Created on the
+    -- partitioned parent, so Postgres propagates it to every partition,
+    -- current and future.
+    IF to_regclass('chats.messages') IS NOT NULL THEN
+        -- Superseded by the composite index below. Only dropped when it
+        -- really belongs to chats.messages: after a v1 migration the same
+        -- auto-generated name can belong to the kept messages_backup_* table.
+        IF EXISTS (
+            SELECT 1 FROM pg_index i
+            JOIN pg_class c ON c.oid = i.indexrelid
+            WHERE i.indrelid = 'chats.messages'::regclass
+              AND c.relname = 'messages_roomId_idx'
+        ) THEN
+            DROP INDEX chats."messages_roomId_idx";
+        END IF;
+        CREATE INDEX IF NOT EXISTS "messages_roomId_createdAt_idx"
+            ON chats.messages USING btree ("roomId", "createdAt" DESC);
+        -- Pinned messages banner: few rows per room, partial index keeps it
+        -- tiny.
+        CREATE INDEX IF NOT EXISTS "messages_roomId_pinned_idx"
+            ON chats.messages USING btree ("roomId", "createdAt" DESC)
+            WHERE pinned;
+    END IF;
+
+    -- The v1 tables were renamed to *_backup_* with their RLS policies
+    -- attached (policies follow the table, not its name). Drop those
+    -- policies: RLS stays enabled on the backups, so with no policy left
+    -- they're closed to anon/authenticated (only postgres/service_role can
+    -- still read them), and the v1 helper functions the policies depend on
+    -- (e.g. chats.is_member(uuid[])) can be dropped by
+    -- 03_database_policy.sql. The data itself is kept untouched.
+    IF v_is_v1 THEN
+        DECLARE
+            p record;
+        BEGIN
+            FOR p IN
+                SELECT tablename, policyname FROM pg_policies
+                WHERE schemaname = 'chats'
+                  AND tablename IN (v_users_backup, v_rooms_backup, v_messages_backup)
+            LOOP
+                EXECUTE format('DROP POLICY %I ON chats.%I', p.policyname, p.tablename);
+            END LOOP;
+        END;
     END IF;
 
     -- ========================================================================
@@ -636,3 +775,7 @@ $do$;
 -- cleanup-media Edge Function (service_role only) — not part of the app's
 -- data model, so undo the blanket anon/authenticated grant for it too.
 REVOKE ALL ON TABLE chats.media_pending_deletion FROM anon, authenticated;
+
+-- The blanket grants above also reach the chats.messages partitions, which
+-- must only be accessed through the parent table: take them back.
+SELECT chats.ensure_messages_partitions_rls();

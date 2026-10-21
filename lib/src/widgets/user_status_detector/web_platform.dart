@@ -4,8 +4,11 @@ import 'package:web/web.dart' as web;
 
 import 'platforms_widgets_binding.dart';
 
+/// Creates the binding for the current platform.
 PlatformsWidgetsBinding getInstance() => WebWidgetsBinding();
 
+/// Web: browser window focus/blur, since browser tabs rarely report
+/// Flutter lifecycle changes.
 class WebWidgetsBinding extends PlatformsWidgetsBinding {
   JSFunction? _focusListener;
   JSFunction? _blurListener;

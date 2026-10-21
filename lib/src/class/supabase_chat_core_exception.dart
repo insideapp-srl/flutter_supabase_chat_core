@@ -6,6 +6,7 @@
 /// error) as [cause], so callers can catch this one type instead of having
 /// to know every exception type the Supabase client can raise.
 sealed class SupabaseChatCoreException implements Exception {
+  /// Creates the exception.
   const SupabaseChatCoreException(this.message, {this.cause, this.stackTrace});
 
   /// Describes which operation failed (e.g. `'sendMessage'`).
@@ -26,6 +27,7 @@ sealed class SupabaseChatCoreException implements Exception {
 /// Thrown when an operation requires a logged-in Supabase user and there
 /// isn't one.
 final class SupabaseChatCoreAuthException extends SupabaseChatCoreException {
+  /// Creates the exception; see [SupabaseChatCoreException].
   const SupabaseChatCoreAuthException(
     super.message, {
     super.cause,
@@ -36,6 +38,7 @@ final class SupabaseChatCoreAuthException extends SupabaseChatCoreException {
 /// Thrown when a Supabase/Postgres request fails (RLS permission denied,
 /// constraint violation, connectivity, ...).
 final class SupabaseChatCoreRequestException extends SupabaseChatCoreException {
+  /// Creates the exception; see [SupabaseChatCoreException].
   const SupabaseChatCoreRequestException(
     super.message, {
     super.cause,
@@ -46,6 +49,7 @@ final class SupabaseChatCoreRequestException extends SupabaseChatCoreException {
 /// Thrown when uploading a chat asset (image, file, avatar) to Supabase
 /// Storage fails.
 final class SupabaseChatCoreStorageException extends SupabaseChatCoreException {
+  /// Creates the exception; see [SupabaseChatCoreException].
   const SupabaseChatCoreStorageException(
     super.message, {
     super.cause,

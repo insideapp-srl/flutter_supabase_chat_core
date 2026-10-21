@@ -1,3 +1,12 @@
+-- Storage buckets and policies for chat attachments and user avatars.
+--
+--   chats_assets/<roomId>/<file>       readable/writable by room members.
+--   chats_user_avatar/<userId>/<file>  readable by any authenticated user,
+--                                      writable by its owner only.
+--
+-- Both buckets are private: files are served through authenticated URLs
+-- (`/storage/v1/object/authenticated/...`) with the user's access token.
+-- Requires 03_database_policy.sql (path helpers) to have run first.
 insert into storage.buckets
   (id, name)
 values
@@ -9,55 +18,61 @@ DROP policy IF EXISTS "storage.object_grant_create_auth_chats_assets"
     ON storage.objects;
 create policy "storage.object_grant_create_auth_chats_assets"
 on storage.objects for insert
+to authenticated
 with check (
     bucket_id = 'chats_assets'
     and
-    chats.is_chat_member((storage.foldername(name))[1]::uuid));
+    chats.is_chat_member_path(name));
 
 DROP policy IF EXISTS "storage.object_grant_read_auth_chats_assets"
     ON storage.objects;
 create policy "storage.object_grant_read_auth_chats_assets"
 on storage.objects for select
+to authenticated
 using (
     bucket_id = 'chats_assets'
     and
-    chats.is_chat_member((storage.foldername(name))[1]::uuid));
+    chats.is_chat_member_path(name));
 
 DROP policy IF EXISTS "storage.object_grant_update_auth_chats_assets"
     ON storage.objects;
 create policy "storage.object_grant_update_auth_chats_assets"
 on storage.objects for update
+to authenticated
 using (
     bucket_id = 'chats_assets'
     and
-    chats.is_chat_member((storage.foldername(name))[1]::uuid))
+    chats.is_chat_member_path(name))
 with check (
     bucket_id = 'chats_assets'
     and
-    chats.is_chat_member((storage.foldername(name))[1]::uuid));
+    chats.is_chat_member_path(name));
 
 DROP policy IF EXISTS "storage.object_grant_delete_auth_chats_assets"
     ON storage.objects;
 create policy "storage.object_grant_delete_auth_chats_assets"
 on storage.objects for delete
+to authenticated
 using (
     bucket_id = 'chats_assets'
     and
-    chats.is_chat_member((storage.foldername(name))[1]::uuid));
+    chats.is_chat_member_path(name));
 
 DROP policy IF EXISTS "storage.object_grant_create_auth_chats_user_avatar"
     ON storage.objects;
 create policy "storage.object_grant_create_auth_chats_user_avatar"
 on storage.objects for insert
+to authenticated
 with check (
     bucket_id = 'chats_user_avatar'
     and
-    chats.is_owner((storage.foldername(name))[1]::uuid));
+    chats.is_owner_path(name));
 
 DROP policy IF EXISTS "storage.object_grant_read_auth_chats_user_avatar"
     ON storage.objects;
 create policy "storage.object_grant_read_auth_chats_user_avatar"
 on storage.objects for select
+to authenticated
 using (
     bucket_id = 'chats_user_avatar'
     and
@@ -67,20 +82,22 @@ DROP policy IF EXISTS "storage.object_grant_update_auth_chats_user_avatar"
     ON storage.objects;
 create policy "storage.object_grant_update_auth_chats_user_avatar"
 on storage.objects for update
+to authenticated
 using (
     bucket_id = 'chats_user_avatar'
     and
-    chats.is_owner((storage.foldername(name))[1]::uuid))
+    chats.is_owner_path(name))
 with check (
     bucket_id = 'chats_user_avatar'
     and
-    chats.is_owner((storage.foldername(name))[1]::uuid));
+    chats.is_owner_path(name));
 
 DROP policy IF EXISTS "storage.object_grant_delete_auth_chats_user_avatar"
     ON storage.objects;
 create policy "storage.object_grant_delete_auth_chats_user_avatar"
 on storage.objects for delete
+to authenticated
 using (
     bucket_id = 'chats_user_avatar'
     and
-    chats.is_owner((storage.foldername(name))[1]::uuid));
+    chats.is_owner_path(name));

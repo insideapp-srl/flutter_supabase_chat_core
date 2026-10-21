@@ -3,94 +3,97 @@ id: supabase-project-configuration
 title: Supabase project preparation
 ---
 
-### Create a Supabase project
+The database is set up by the SQL scripts in [`example/utils/sql`](https://github.com/insideapp-srl/flutter_supabase_chat_core/tree/main/example/utils/sql), applied in this order:
 
-1. Install Supabase CLI: [Official documentation](https://supabase.com/docs/guides/cli/getting-started)
-2. Login with Supabase: `supabase login`
-3. Install [`jq`](https://jqlang.org/download/) (Linux/macOS only; not needed on Windows)
-4. Run the project creation script from `example/utils`:
+| Script | Content |
+|--------|---------|
+| `01_database_schema.sql` | Schema `chats`, tables, weekly partitions of `chats.messages`, indexes, `pg_cron` maintenance job. Also migrates a 1.x database. |
+| `02_database_trigger.sql` | [Triggers](../guides/supabse-trigges.md): profile creation, last message snapshot, `sent` status, media cleanup queue, empty room deletion, Realtime broadcast of message changes. |
+| `03_database_policy.sql` | Access helpers, RPCs and [RLS policies](../guides/supabase-security-rls.md) (tables and `realtime.messages`). |
+| `04_storage.sql` | Buckets `chats_assets` and `chats_user_avatar` and their policies. |
+| `05_database_view.sql` | [Views](../guides/supabse-views.md) `chats.rooms_l` and `chats.messages_l`. |
+| `99_database_schema_permission.sql` | Final grants. |
+| `06_cleanup_media_schedule.sql` | Optional: schedules the `cleanup-media` Edge Function (see [Usage](../guides/supabase-usage.md#media-cleanup)). |
 
-#### Linux/macOS
+Every script is idempotent, so re-running them is safe. `01_database_schema.sql` detects the shape of the database: it creates the 2.x schema on a fresh database, migrates a 1.x one (see [MIGRATION.md](https://github.com/insideapp-srl/flutter_supabase_chat_core/blob/main/MIGRATION.md)) and does nothing on an up-to-date one.
+
+:::info Requirements
+* The `pg_partman` and `pg_cron` extensions must be available: the script creates them (`pg_partman` in its own `partman` schema).
+* Realtime must support **Broadcast from Database** (Supabase cloud, or self-hosted `supabase/realtime` >= v2.33): message changes are sent by a database trigger.
+:::
+
+## Option A: Supabase CLI
+
+1. Install the [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started) and log in with `supabase login` (the script opens the login flow if needed).
+2. Linux/macOS only: install [`jq`](https://jqlang.org/download/).
+3. Run the script from `example/utils`:
 
 ```bash
 cd example/utils
 ./supabase_prepare.sh
 ```
 
-#### Windows
-
 ```powershell
 cd example\utils
 .\supabase_prepare.ps1
 ```
 
-It creates the Supabase project (prompting for a name, organization ID and region), generates a database password for you (Supabase never shows it again after creation), writes `example/lib/supabase_options_for_test.dart` and `example/lib/main_test.dart` (both gitignored — `main.dart`/`supabase_options.dart` stay untouched), and offers to run the database preparation script (below) right away. Run the app with `flutter run -t lib/main_test.dart`.
+It asks whether to create a new project (organization and region picked from a list with the arrow keys, database password generated for you) or to use an existing one (it then asks for its database password, which Supabase only shows at creation time). Then it:
 
-All the references it collects — project ref, URL, anon/service_role keys, database host/port/user/password — are written to `example/utils/project-secrets.local.json`.
+* fetches the project's API keys;
+* writes `example/lib/supabase_options_for_test.dart` and `example/lib/main_test.dart` (both gitignored; the tracked `main.dart`/`supabase_options.dart` stay untouched), so you can run the example with `flutter run -t lib/main_test.dart`;
+* writes `example/utils/project-secrets.local.json` with the project ref, URL, keys and database credentials;
+* offers to apply scripts `01`…`05` and `99` with `supabase link` + `supabase db query --linked`. This goes through Supavisor's IPv4-compatible pooler, so it also works on networks without IPv6, where a direct `db.<ref>.supabase.co` connection hangs. If you skip this step, it prints the commands to run later.
 
 :::danger
-`project-secrets.local.json` contains secrets. It's already gitignored — never commit it.
+`project-secrets.local.json` contains secrets. It's gitignored: never commit it.
 :::
 
 <details>
-<summary>Prefer the manual steps?</summary>
+<summary>Manual project creation</summary>
 
 1. `supabase projects create demo-chat` (choose your organization, region, and a secure database password — save it, it won't be shown again)
 2. `supabase projects list` to get the project's `REFERENCE ID`
-3. `supabase projects api-keys --project-ref <reference_id>` to get the `anon` key
-4. Edit `example/lib/supabase_options_for_test.dart` (create it if missing, see `example/lib/supabase_options.dart` for the shape), filling in your project's URL (`https://<reference_id>.supabase.co`) and anon key
+3. `supabase projects api-keys --project-ref <reference_id>` to get the `anon`/publishable key
 
 </details>
 
-#### Prepare Supabase project
+## Option B: psql
 
-Inside the example project (`example/utils`) there is a script, running the latter will automatically configure the Supabase project, creating tables, security rules, buckets and everything that is necessary for the example project to function. It's also idempotent and self-detecting — the same script bootstraps a fresh project or migrates an existing 1.x database, see [MIGRATION.md](https://github.com/insideapp-srl/flutter_supabase_chat_core/blob/main/MIGRATION.md).
+`prepare.sh`/`prepare.ps1` apply scripts `01`…`05` and `99` with [`psql`](https://www.postgresql.org/download/). They ask for the database password once (or read `PGPASSWORD`), stop at the first failing script, and can be run from any directory.
 
-:::info
-Since 2.x, `chats.messages` is managed by [pg_partman](https://github.com/pgpartman/pg_partman) for partitioning, with maintenance scheduled via `pg_cron`. Both extensions ship enabled by default on Supabase's self-hosted Postgres image — on Supabase Cloud, enable them first from **Database > Extensions** in your project dashboard if they aren't already.
-:::
+```bash
+./example/utils/prepare.sh -h <host> -p <port> -d <database> -U <user>
+```
 
-In order to run the script you need to be aware of the following information about your Supabase project:
+```powershell
+.\example\utils\prepare.ps1 -hostname <host> -port <port> -database <database> -user <user>
+```
 
-- `host` : Project host
-- `port` : Database port
-- `database` : Database name
-- `user` : Database user
-- `password` : Database password
-
-This information, with the exception of the password which is provided only during the creation of the database (if necessary, you can use the password reset function of your database to obtain it), can be found very easily from the Dashboard of your Supabase project:
+The connection parameters are in the dashboard of your project:
 
 ![Supabase dashboard database info](/img/supabase-project-credential.png "Database info")
 
-#### Running prepare script
+Neither script applies the optional `06_cleanup_media_schedule.sql`: it needs the Edge Function deployed and two Vault secrets first (see [Usage](../guides/supabase-usage.md#media-cleanup)).
 
-Below are the commands for running the scripts (During execution you will be asked for the password for your database user):
+## Expose the `chats` schema
 
->   Required `psql` installed -> [Official documentation](https://www.postgresql.org/download/)
-
-#### Linux
-
-```bash
-cd ./example/utils/
-./prepare.sh -h "your-postgres-host" -p your-postgres-port -d "your-postgres-database-name" -U "your-postgres-user"
-```
-
-#### Windows
-
-```powershell
-cd .\example\utils\
-.\prepare.ps1 -hostname "your-postgres-host" -port your-postgres-port -database "your-postgres-database-name" -user "your-postgres-user"
-```
-
-
-after running the database preparation script. you need to change the database schema exposure setting by adding the `chats` schema (from the supabase dashboard):
+After the scripts, add `chats` to the schemas exposed by the Data API (Dashboard → Project Settings → Data API):
 
 ![Supabase dashboard schema exposure setting](/img/supabase-schema-exposure-setting.png "Schema exposure setting")
 
-Optional (**Only for test**): Disable email verification and save the configuration (To speed up testing and allow user registration in just one click, it is advisable to disable mailbox verification):
+Optional, **for testing only**: disable email confirmation to sign up in one click.
 
 ![Supabase dashboard disable email verification](/img/supabase-disable-confirm-email.png "Disable email verification")
 
-Read our [documentation](https://flutter-supabase-chat-core.insideapp.it) or see the [example](https://github.com/insideapp-srl/flutter_supabase_chat_core/tree/main/example) project. To run the example project you need to have your own [Supabase](https://supabase.com/dashboard/projects) project — `supabase_prepare.sh`/`.ps1` above sets this up for you; if you'd rather do it by hand, follow [Add Supabase to your Flutter app](https://supabase.com/docs/reference/dart/initializing) and fill in `example/lib/supabase_options_for_test.dart` (gitignored — see `supabase_options.dart` for the shape, and don't edit that tracked file directly) plus a `main_test.dart` importing it 😉
+## Run the example
 
-After all of this is done you will need to register a couple of users and the example app will automatically suggest email and password on the register screen, default password is `Qawsed1-`. To set up [Supabase Security Rules](https://supabase.com/docs/guides/database/postgres/row-level-security) so users can see only the data they should see, continue with our [documentation](https://flutter-supabase-chat-core.insideapp.it/).
+```bash
+cd example
+flutter run -t lib/main_test.dart   # after supabase_prepare.sh/.ps1
+# or, with any project:
+flutter run --dart-define=SUPABASE_URL=https://<ref>.supabase.co \
+            --dart-define=SUPABASE_ANON_KEY=<anon-or-publishable-key>
+```
+
+Create an account from the sign-in page ("Fill in a demo account" generates a name, an email and the password `Demo-password-1`). The profile is created by the `chats.handle_new_user` trigger from the sign-up metadata. To try it against a local stack with demo data, see [Testing](../guides/testing.md).

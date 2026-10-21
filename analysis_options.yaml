@@ -14,6 +14,7 @@ linter:
     - sized_box_for_whitespace
     - sort_child_properties_last
     - sort_pub_dependencies
+    - public_member_api_docs
     - type_annotate_public_apis
     - unawaited_futures
     - use_named_constants
