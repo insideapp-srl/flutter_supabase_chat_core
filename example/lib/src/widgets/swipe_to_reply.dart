@@ -19,13 +19,22 @@ class SwipeToReply extends StatefulWidget {
 class _SwipeToReplyState extends State<SwipeToReply>
     with SingleTickerProviderStateMixin {
   static const _threshold = 64.0;
-  late final AnimationController _back = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 200),
-  )..addListener(() => setState(() => _dx = _from * (1 - _back.value)));
+  // Created in initState, not lazily: dispose() would otherwise create its
+  // ticker while the element is being unmounted (a message that was never
+  // swiped), which Flutter rejects.
+  late final AnimationController _back;
   double _dx = 0;
   double _from = 0;
   bool _armed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _back = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    )..addListener(() => setState(() => _dx = _from * (1 - _back.value)));
+  }
 
   @override
   void dispose() {

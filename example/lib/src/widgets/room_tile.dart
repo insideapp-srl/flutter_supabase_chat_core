@@ -63,29 +63,37 @@ class RoomTile extends StatelessWidget {
                     Row(
                       spacing: 4,
                       children: [
-                        if (room.type == ChatRoomType.group)
-                          Icon(
-                            Icons.group_rounded,
-                            size: 16,
-                            color: scheme.onSurface,
-                          ),
-                        Flexible(
-                          child: Text(
-                            room.name ?? 'Unnamed',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                        // The name takes the free space, so status and time
+                        // always sit on the right edge.
+                        Expanded(
+                          child: Row(
+                            spacing: 4,
+                            children: [
+                              if (room.type == ChatRoomType.group)
+                                Icon(
+                                  Icons.group_rounded,
+                                  size: 16,
+                                  color: scheme.onSurface,
+                                ),
+                              Flexible(
+                                child: Text(
+                                  room.name ?? 'Unnamed',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              if (room.isMuted)
+                                Icon(
+                                  Icons.volume_off_rounded,
+                                  size: 15,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                            ],
                           ),
                         ),
-                        if (room.isMuted)
-                          Icon(
-                            Icons.volume_off_rounded,
-                            size: 15,
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        const Spacer(),
                         if (mine) _StatusIcon(status: last.status),
                         Text(
                           formatListTime(

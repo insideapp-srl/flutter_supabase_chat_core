@@ -144,3 +144,6 @@ CNAME
 !/doc/static/img/
 /doc/static/img/*
 !/doc/static/img/example_light.jpg
+!/doc/static/img/demo.gif
+!/doc/static/img/insideapp-logo-dark-text.png
+!/doc/static/img/insideapp-logo-light-text.png

@@ -695,7 +695,8 @@ class SupabaseChatCore {
               },
             )
             .subscribe(
-              (status, error) => _reportSubscribeError(controller, status, error),
+              (status, error) =>
+                  _reportSubscribeError(controller, status, error),
             );
         refresh();
       },
@@ -822,7 +823,8 @@ class SupabaseChatCore {
               },
             )
             .subscribe(
-              (status, error) => _reportSubscribeError(controller, status, error),
+              (status, error) =>
+                  _reportSubscribeError(controller, status, error),
             );
       },
       onCancel: () async {

@@ -16,7 +16,8 @@ import 'package:uuid/uuid.dart';
 
 import 'format.dart';
 
-/// What the user wants to attach.
+/// What the user wants to attach. [audio] is recorded from the composer's
+/// microphone, not offered by [AttachmentPickerSheet].
 enum AttachmentKind { camera, gallery, file, audio }
 
 /// Bottom sheet offering the attachment kinds available on this platform.
@@ -31,7 +32,6 @@ class AttachmentPickerSheet extends StatelessWidget {
         (AttachmentKind.camera, Icons.photo_camera_outlined, 'Camera', 0),
       (AttachmentKind.gallery, Icons.photo_outlined, 'Photo', 1),
       (AttachmentKind.file, Icons.insert_drive_file_outlined, 'File', 2),
-      (AttachmentKind.audio, Icons.mic_none_rounded, 'Voice', 3),
     ];
     final scheme = Theme.of(context).colorScheme;
     final tints = [

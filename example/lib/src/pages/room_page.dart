@@ -15,6 +15,7 @@ import '../theme/app_theme.dart';
 import '../utils/attachments.dart';
 import '../utils/format.dart';
 import '../widgets/audio_message_bubble.dart';
+import '../widgets/chat_composer.dart';
 import '../widgets/chat_wallpaper.dart';
 import '../widgets/message_actions_sheet.dart';
 import '../widgets/pinned_banner.dart';
@@ -51,6 +52,23 @@ class RoomPage extends StatefulWidget {
   State<RoomPage> createState() => _RoomPageState();
 }
 
+/// Keeps the browser's own context menu off while a room is shown on the web,
+/// so a right click on a message opens only its actions. Counted: when the
+/// selected room changes, the new page starts before the old one ends.
+abstract final class _BrowserContextMenu {
+  static int _rooms = 0;
+
+  static void acquire() {
+    if (!kIsWeb || _rooms++ > 0) return;
+    unawaited(BrowserContextMenu.disableContextMenu());
+  }
+
+  static void release() {
+    if (!kIsWeb || --_rooms > 0) return;
+    unawaited(BrowserContextMenu.enableContextMenu());
+  }
+}
+
 class _RoomPageState extends State<RoomPage> {
   final _chat = SupabaseChatCore.instance;
   final _text = TextEditingController();
@@ -71,6 +89,7 @@ class _RoomPageState extends State<RoomPage> {
   @override
   void initState() {
     super.initState();
+    _BrowserContextMenu.acquire();
     _controller = SupabaseChatController(room: widget.room, onError: _onError);
     _text.addListener(() {
       if (_text.text.isNotEmpty) _controller.onTyping();
@@ -97,6 +116,7 @@ class _RoomPageState extends State<RoomPage> {
     _controller.dispose();
     _text.dispose();
     _composerFocus.dispose();
+    _BrowserContextMenu.release();
     super.dispose();
   }
 
@@ -150,7 +170,11 @@ class _RoomPageState extends State<RoomPage> {
       context: context,
       builder: (_) => const AttachmentPickerSheet(),
     );
-    if (kind == null || !mounted) return;
+    if (kind != null && mounted) await _sendAttachment(kind);
+  }
+
+  /// Picks or records an attachment of [kind], uploads and sends it.
+  Future<void> _sendAttachment(AttachmentKind kind) async {
     setState(() => _uploading = true);
     try {
       final message = await pickAttachment(
@@ -804,17 +828,16 @@ class _RoomPageState extends State<RoomPage> {
                           style: TextStyle(color: palette.receivedMeta),
                         ),
                       ),
-                  composerBuilder: (context) => Composer(
+                  composerBuilder: (context) => ChatComposer(
                     textEditingController: _text,
                     focusNode: _composerFocus,
-                    hintText: 'Message',
                     sendOnEnter: kIsWeb,
                     backgroundColor: scheme.surface,
                     inputFillColor: scheme.surface,
-                    attachmentIconColor: scheme.onSurfaceVariant,
-                    sendIconColor: scheme.primary,
                     topWidget: _composerTop(theme),
-                    textCapitalization: TextCapitalization.sentences,
+                    onRecordVoice: _uploading
+                        ? null
+                        : () => _sendAttachment(AttachmentKind.audio),
                   ),
                 ),
               ),

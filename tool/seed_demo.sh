@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Seeds the LOCAL Supabase stack with demo users and conversations, e.g. to
-# try the example app or take screenshots:
-#   tool/local_db.sh && tool/seed_demo.sh
+# Seeds a Supabase project with demo users and conversations, e.g. to try
+# the example app or take screenshots:
+#   tool/local_db.sh && tool/seed_demo.sh          # local stack
+#   tool/seed_demo.sh --project-ref <ref>          # cloud project (CLI login)
 # Every demo user signs in with password "Demo-password-1":
 #   alice@demo.dev (main account), bob@demo.dev, carol@demo.dev,
 #   dave@demo.dev, erin@demo.dev
@@ -9,7 +10,30 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 DB_URL="${DB_URL:-postgresql://postgres:postgres@127.0.0.1:54322/postgres}"
-eval "$(supabase status -o env 2>/dev/null | grep -E '^(API_URL|SERVICE_ROLE_KEY)=')"
+PROJECT_REF=""
+if [[ "${1:-}" == "--project-ref" ]]; then PROJECT_REF="${2:?--project-ref needs a ref}"; fi
+
+if [[ -n "$PROJECT_REF" ]]; then
+    # Cloud: keys from the CLI, SQL through the Management API (no password).
+    API_URL="https://$PROJECT_REF.supabase.co"
+    SERVICE_ROLE_KEY="$(supabase projects api-keys --project-ref "$PROJECT_REF" -o json 2>/dev/null |
+        python -c "import sys,json;print(next(k['api_key'] for k in json.load(sys.stdin) if k['name']=='service_role'))")"
+else
+    eval "$(supabase status -o env 2>/dev/null | grep -E '^(API_URL|SERVICE_ROLE_KEY)=')"
+fi
+
+# Runs SQL (stdin, or -c) and prints the first column of each row.
+sql() {
+    if [[ -n "$PROJECT_REF" ]]; then
+        local f; f="$(mktemp)"
+        if [[ "${1:-}" == "-c" ]]; then printf '%s' "$2" > "$f"; else cat > "$f"; fi
+        supabase db query --linked --project-ref "$PROJECT_REF" -f "$f" -o json 2>/dev/null |
+            python -c "import sys,json;[print(list(r.values())[0]) for r in json.load(sys.stdin).get('rows') or []]"
+        rm -f "$f"
+    else
+        psql "$DB_URL" -v ON_ERROR_STOP=1 -q -At "$@" | tr -d '\r'
+    fi
+}
 
 create_user() {
     curl -sf -X POST "$API_URL/auth/v1/admin/users" \
@@ -28,7 +52,7 @@ create_user dave@demo.dev Dave Grohl
 create_user erin@demo.dev Erin Brockovich
 
 echo "creating conversations"
-psql "$DB_URL" -v ON_ERROR_STOP=1 -q <<'SQL'
+sql <<'SQL'
 CREATE OR REPLACE FUNCTION pg_temp.uid(p_email text) RETURNS uuid
 LANGUAGE sql AS $$ SELECT id FROM auth.users WHERE email = p_email $$;
 
@@ -100,7 +124,7 @@ END
 $$;
 SQL
 echo "adding a voice message"
-ROOM_ID=$(psql "$DB_URL" -Atc "select rm.\"roomId\" from chats.room_members rm join chats.rooms r on r.id = rm.\"roomId\" where r.type = 'direct' and rm.\"userId\" = (select id from auth.users where email = 'bob@demo.dev') and rm.\"roomId\" in (select \"roomId\" from chats.room_members where \"userId\" = (select id from auth.users where email = 'alice@demo.dev')) limit 1")
+ROOM_ID=$(sql -c "select rm.\"roomId\" from chats.room_members rm join chats.rooms r on r.id = rm.\"roomId\" where r.type = 'direct' and rm.\"userId\" = (select id from auth.users where email = 'bob@demo.dev') and rm.\"roomId\" in (select \"roomId\" from chats.room_members where \"userId\" = (select id from auth.users where email = 'alice@demo.dev')) limit 1")
 TMP_WAV="$(mktemp).wav"
 # 3s of a gently pulsing 440 Hz tone, 16 kHz mono 16-bit PCM.
 python - "$TMP_WAV" <<'PY'
@@ -118,7 +142,7 @@ PY
 OBJECT="$ROOM_ID/demo-voice.wav"
 curl -sf -X POST "$API_URL/storage/v1/object/chats_assets/$OBJECT"     -H "Authorization: Bearer $SERVICE_ROLE_KEY" -H "Content-Type: audio/wav"     -H "x-upsert: true" --data-binary "@$TMP_WAV" >/dev/null
 rm -f "$TMP_WAV"
-psql "$DB_URL" -v ON_ERROR_STOP=1 -q -c "insert into chats.messages (\"roomId\", \"authorId\", type, source, duration, size, waveform, \"createdAt\")
+sql -c "insert into chats.messages (\"roomId\", \"authorId\", type, source, duration, size, waveform, \"createdAt\")
   values ('$ROOM_ID', (select id from auth.users where email = 'bob@demo.dev'), 'audio',
           '$API_URL/storage/v1/object/authenticated/chats_assets/$OBJECT', 3000, 96044,
           '[0.35,0.5,0.7,0.62,0.4,0.36,0.55,0.75,0.68,0.45,0.35,0.52,0.72,0.66,0.42,0.36,0.56,0.74,0.65,0.44,0.35,0.5,0.7,0.6]',

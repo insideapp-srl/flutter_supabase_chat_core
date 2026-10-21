@@ -62,7 +62,11 @@
 <br>
 
 <p align="center">
-  <img alt="Example app, light theme" src="doc/static/img/example_light.jpg" />
+  <img alt="Demo: a message arriving in real time with the typing indicator, a reaction, a reply and a voice message" src="doc/static/img/demo.gif" />
+</p>
+
+<p align="center">
+  <sub>The example app on Supabase cloud: real-time messages and typing indicator, reactions, replies and voice messages.</sub>
 </p>
 
 <br>
@@ -574,3 +578,20 @@ Flyer Chat has adopted the [Contributor Covenant](https://www.contributor-covena
 ## License
 
 Licensed under the [Apache License, Version 2.0](LICENSE)
+
+---
+
+<p align="center">
+  <a href="https://www.insideapp.it">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="doc/static/img/insideapp-logo-light-text.png">
+      <img alt="InsideApp" src="doc/static/img/insideapp-logo-dark-text.png" width="240">
+    </picture>
+  </a>
+</p>
+
+<p align="center">
+  Made with ❤️ by <a href="https://www.insideapp.it">InsideApp</a>
+  · <a href="https://flutter-supabase-chat-core.insideapp.it">Documentation</a>
+  · <a href="https://github.com/insideapp-srl">GitHub</a>
+</p>

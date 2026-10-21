@@ -8,7 +8,7 @@ Have you ever wanted to implement a chat in your application? Do you think it's 
 
 Try this, thanks to the magnificent [Supabase](https://supabase.com/) platform and the [Flutter Chat UI](https://pub.dev/packages/flutter_chat_ui) package, you can achieve it in just a few minutes and effortlessly.
 
-![Example app](/img/example_light.jpg)
+![Demo: real-time messages, reactions, replies and voice messages](/img/demo.gif)
 
 ---
 

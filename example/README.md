@@ -3,6 +3,8 @@
 A Telegram-like chat app built on `flutter_supabase_chat_core` and
 `flutter_chat_ui` 2.x. It runs on Android, iOS, web, Windows, macOS and Linux.
 
+![Demo: real-time messages, reactions, replies and voice messages](../doc/static/img/demo.gif)
+
 ![Example app, light theme](../doc/static/img/example_light.jpg)
 
 ## Features

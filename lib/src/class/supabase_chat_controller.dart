@@ -150,7 +150,15 @@ class SupabaseChatController
       // was loading: keep them.
       final loadedIds = page.map((m) => m.id).toSet();
       final arrived = _inner.messages.where((m) => !loadedIds.contains(m.id));
-      await _inner.setMessages(_ascending([...page, ...arrived]));
+      // Not animated: a page appears at once (as in messaging apps), and a
+      // list animating every item of the page breaks Flutter's
+      // SliverAnimatedList as soon as another change lands before the
+      // animations end ("AnimationController.dispose() called more than
+      // once").
+      await _inner.setMessages(
+        _ascending([...page, ...arrived]),
+        animated: false,
+      );
       if (autoMarkAsRead) _scheduleMarkAsRead(Duration.zero);
     } catch (e, st) {
       _handleBackgroundError('loadInitialMessages', e, st);
@@ -247,7 +255,11 @@ class SupabaseChatController
       _hasMoreMessages = page.length >= pageSize;
       final fresh = page.where((m) => _findById(m.id) == null);
       if (fresh.isNotEmpty) {
-        await _inner.insertAllMessages(_ascending(fresh), index: 0);
+        await _inner.insertAllMessages(
+          _ascending(fresh),
+          index: 0,
+          animated: false,
+        );
       }
     } finally {
       _loadingPrevious = false;
