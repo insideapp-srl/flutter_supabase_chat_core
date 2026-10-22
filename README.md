@@ -87,6 +87,7 @@ Flyer Chat is a platform for creating in-app chat experiences using Flutter. Thi
 - **Direct and group rooms**, created atomically by a database function. Direct rooms are de-duplicated per pair of users (and per metadata scope, see [Scoping](#scoping-workspaces-organizations)).
 - **Group management**: per-room roles (`admin`, `moderator`), add/remove members, change roles, rename, leave, delete. A room left without members is deleted automatically.
 - **Messages** of every `flutter_chat_core` type (text, image, file, audio with waveform, video, custom...), with replies, edits, reactions, pinned messages and search.
+- **Forwarding**: forward messages to another room, keeping the original author and date; attachments are copied into the destination room.
 - **Optimistic sending**: messages appear right away, are reconciled with the stored row and can be retried when they fail.
 - **Read receipts and unread counters**: `markRoomAsRead` flips other members' messages to `seen` and resets the room's `unreadCount`.
 - **Per-user preferences**: pin a room on top of your list, mute it for a while or for ever.
@@ -109,7 +110,7 @@ Flyer Chat is a platform for creating in-app chat experiences using Flutter. Thi
 
 ```yaml
 dependencies:
-  flutter_supabase_chat_core: ^2.0.0-rc.1
+  flutter_supabase_chat_core: ^2.0.0-rc.2
   supabase_flutter: ^2.17.2
   uuid: ^4.5.1
 
@@ -376,11 +377,29 @@ Call `onTyping()` on every keystroke of the composer, e.g. with your own `TextEd
 | Rooms | `rooms()`, `roomsChanges()` + `SupabaseChatCore.applyRoomChange()`, `room(id)` (stream), `getRoom()`, `createRoom()`, `createGroupRoom()`, `updateRoom()`, `deleteRoom()`, `markRoomAsRead()`, `pinRoom()`, `muteRoom()`, `unmuteRoom()` |
 | Members | `addMembers()`, `removeMember()`, `leaveRoom()`, `setMemberRole()` |
 | Users | `users(filter:, excludeLoggedUser:)`, `user()`, `updateUser()`, `uploadUserAvatar()`, `loggedUser`, `loggedUserId`, `refreshLoggedUser()` |
-| Messages | `messages(roomId, before:, limit:)`, `message()`, `pinnedMessages()`, `searchMessages()`, `sendMessage()`, `updateMessage()`, `toggleReaction()`, `setMessagePinned()`, `deleteMessage()` |
+| Messages | `messages(roomId, before:, limit:)`, `message()`, `pinnedMessages()`, `searchMessages()`, `sendMessage()`, `forwardMessages()`, `updateMessage()`, `toggleReaction()`, `setMessagePinned()`, `deleteMessage()` |
 | Storage | `uploadAsset()`, `getAssetUrl()`, `httpSupabaseHeaders` (to load authenticated URLs) |
 | Presence | `setPresenceStatus()`, `userOnlineStatus()` |
+| Session | `closeSession()` (before signing out), `dispose()` |
 
 `SupabaseChatCore.instance` is the singleton bound to `Supabase.instance.client`. Create your own instance with `SupabaseChatCore(client: ..., config: ...)` to use another client (e.g. several users in one process, as the integration tests do), and `dispose()` it when done. Controllers and widgets accept a `chatCore:` parameter for that.
+
+### Forwarding messages
+
+```dart
+await SupabaseChatCore.instance.forwardMessages(fromRoom, selectedMessages, toRoomId);
+```
+
+The messages are sent to `toRoomId` as new messages of the logged-in user (a member of both rooms), oldest first. Each copy keeps content and metadata, drops reply, reactions, pin and edited mark, and stores where it comes from: read it with `ChatForwardOrigin.of(message)` (`authorId`, `authorName`, `createdAt`) to show a "Forwarded from ..." header. Forwarding a forwarded message keeps the first origin. The author's name is a snapshot, since the recipients may not be able to read the original author's profile. Attachments in the chat assets bucket are copied into the destination room's folder, so its members can read them; external URLs are kept as they are.
+
+### Signing out
+
+```dart
+await SupabaseChatCore.instance.closeSession();
+await Supabase.instance.client.auth.signOut();
+```
+
+`closeSession()` sets the user offline and closes everything opened for them: room channels, presence watches and the `roomsChanges()`, `room()` and `userOnlineStatus()` streams, which complete. Call it right **before** signing out: after the sign out Realtime is re-authorized with the anon key, which private room channels reject, so they would report subscription errors instead of leaving cleanly. Signing out (or switching user) without it still closes the session when the auth state change arrives, and `SupabaseChatRoomsController` clears its rooms until the next `loadFirstPage()`.
 
 ### Error handling
 

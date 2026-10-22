@@ -436,6 +436,63 @@ void main() {
         throwsA(isA<StorageException>()),
       );
     });
+
+    test('forwarded messages keep their origin and attachments', () async {
+      final target = await alice.chat.createGroupRoom(
+        name: 'Forward target',
+        users: [carol.asChatUser],
+      );
+      final text = _text(bob, 'from bob');
+      await bob.chat.sendMessage(text, room.id);
+      final upload = await alice.chat.uploadAsset(
+        room,
+        'report.txt',
+        Uint8List.fromList(utf8.encode('forwarded file')),
+      );
+      await alice.chat.sendMessage(
+        core.Message.file(
+          id: const Uuid().v7(),
+          authorId: alice.id,
+          source: upload.url,
+          name: 'report.txt',
+        ),
+        room.id,
+      );
+      final originals = await alice.chat.messages(room.id);
+      final fullRoom = (await alice.chat.getRoom(room.id))!;
+
+      await alice.chat.forwardMessages(fullRoom, originals, target.id);
+
+      final forwarded = (await carol.chat.messages(
+        target.id,
+      )).reversed.toList();
+      expect(forwarded, hasLength(2));
+      expect((forwarded.first as core.TextMessage).text, 'from bob');
+      expect(forwarded.every((m) => m.authorId == alice.id), isTrue);
+      final origin = ChatForwardOrigin.of(forwarded.first)!;
+      expect(origin.authorId, bob.id);
+      expect(origin.authorName, bob.asChatUser.fullName);
+      expect(ChatForwardOrigin.of(forwarded.last)?.authorId, alice.id);
+
+      // Copied into the target's folder: readable by its members.
+      final file = forwarded.last as core.FileMessage;
+      expect(file.source, isNot(upload.url));
+      final path = file.source.split('/chats_assets/').last;
+      expect(path, startsWith('${target.id}/'));
+      final downloaded = await carol.client.storage
+          .from('chats_assets')
+          .download(path);
+      expect(utf8.decode(downloaded), 'forwarded file');
+
+      // Forwarding a forward keeps the first origin.
+      final again = await alice.chat.createGroupRoom(
+        name: 'Forward again',
+        users: [carol.asChatUser],
+      );
+      await carol.chat.forwardMessages(target, [forwarded.first], again.id);
+      final twice = (await carol.chat.messages(again.id)).single;
+      expect(ChatForwardOrigin.of(twice)?.authorId, bob.id);
+    });
   });
 
   group('telegram-like features', skip: skipReason, () {
@@ -640,6 +697,50 @@ void main() {
       await alice.chat.deleteRoom(second.id);
       await eventually(() => controller.rooms.length == 1);
     });
+
+    for (final closeFirst in [true, false]) {
+      test('signing out ends the session streams without errors '
+          '(${closeFirst ? 'closeSession first' : 'sign out only'})', () async {
+        final sam = await TestUser.create('Sam', 'Signout');
+        addTearDown(sam.dispose);
+        final room = await alice.chat.createGroupRoom(
+          name: 'Sign out',
+          users: [sam.asChatUser],
+        );
+        final errors = <Object>[];
+        var roomsDone = false;
+        var roomDone = false;
+        final roomsSub = sam.chat.roomsChanges().listen(
+          null,
+          onError: errors.add,
+          onDone: () => roomsDone = true,
+        );
+        addTearDown(roomsSub.cancel);
+        final roomSub = sam.chat
+            .room(room.id)
+            .listen(null, onError: errors.add, onDone: () => roomDone = true);
+        addTearDown(roomSub.cancel);
+        final controller = SupabaseChatController(
+          room: room,
+          chatCore: sam.chat,
+          onError: errors.add,
+        );
+        addTearDown(controller.dispose);
+        await realtimeReady(sam.client);
+
+        if (closeFirst) await sam.chat.closeSession();
+        await sam.client.auth.signOut();
+        await eventually(
+          () => roomsDone && roomDone,
+          reason: 'session streams complete',
+        );
+        // ignore: invalid_use_of_internal_member
+        expect(sam.client.getChannels(), isEmpty);
+        // Leave Realtime the time to answer the re-authorization.
+        await Future<void>.delayed(const Duration(seconds: 2));
+        if (closeFirst) expect(errors, isEmpty);
+      });
+    }
 
     test('online status is shared over presence', () async {
       final statuses = <UserOnlineStatus>[];

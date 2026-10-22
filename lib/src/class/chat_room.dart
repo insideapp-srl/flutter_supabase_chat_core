@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show listEquals, mapEquals;
 import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
 import 'package:meta/meta.dart';
 
@@ -193,11 +194,41 @@ class ChatRoom {
     mutedUntil: mutedUntil != null ? mutedUntil() : this.mutedUntil,
   );
 
+  /// Value equality over every field: a room refetched after a change (a new
+  /// message, the unread count, a rename) is not `==` to the copy a list or a
+  /// `ValueNotifier` holds, which would otherwise drop it as unchanged. Match
+  /// rooms by [id] to find the same room.
   @override
-  bool operator ==(Object other) => other is ChatRoom && other.id == id;
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ChatRoom &&
+          other.id == id &&
+          other.type == type &&
+          other.name == name &&
+          other.imageUrl == imageUrl &&
+          other.createdAt == createdAt &&
+          other.updatedAt == updatedAt &&
+          other.unreadCount == unreadCount &&
+          other.lastReadAt == lastReadAt &&
+          other.pinnedAt == pinnedAt &&
+          other.mutedUntil == mutedUntil &&
+          mapEquals(other.metadata, metadata) &&
+          listEquals(other.users, users) &&
+          listEquals(other.lastMessages, lastMessages);
 
   @override
-  int get hashCode => id.hashCode;
+  int get hashCode => Object.hash(
+    id,
+    type,
+    name,
+    imageUrl,
+    createdAt,
+    updatedAt,
+    unreadCount,
+    lastReadAt,
+    pinnedAt,
+    mutedUntil,
+  );
 
   @override
   String toString() => 'ChatRoom($id, ${type.name}, $name)';

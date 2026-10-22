@@ -114,6 +114,33 @@ void main() {
       expect(room.unreadCount, 4);
     });
 
+    test('equality covers the content, not only the id', () {
+      final room = ChatRoom.fromJson(_roomRow(), currentUserId: _me);
+      expect(ChatRoom.fromJson(_roomRow(), currentUserId: _me), room);
+      expect(
+        ChatRoom.fromJson(_roomRow(), currentUserId: _me).hashCode,
+        room.hashCode,
+      );
+
+      // A new message in a room already on top: same id, same position.
+      final bumped = ChatRoom.fromJson(
+        _roomRow(unread: 1)
+          ..['lastMessages'] = [
+            {
+              'id': 'm2',
+              'authorId': _other,
+              'roomId': 'r1',
+              'type': 'text',
+              'text': 'Newer one',
+              'createdAt': '2026-10-02T00:00:00+00:00',
+            },
+          ],
+        currentUserId: _me,
+      );
+      expect(bumped, isNot(room));
+      expect(room.copyWith(unreadCount: 3), isNot(room));
+    });
+
     test('parses dates, metadata and the last message', () {
       final room = ChatRoom.fromJson(_roomRow(), currentUserId: _me);
       expect(room.updatedAt, DateTime.utc(2026, 10, 2));
@@ -216,5 +243,30 @@ void main() {
     expect(chatRoomRoleFromName('admin'), ChatRoomRole.admin);
     expect(chatRoomRoleFromName(null), isNull);
     expect(chatRoomRoleFromName('nope'), isNull);
+  });
+
+  group('ChatForwardOrigin', () {
+    test('round-trips through the message metadata', () {
+      final origin = ChatForwardOrigin(
+        authorId: _other,
+        authorName: 'Bob',
+        createdAt: DateTime.utc(2026, 10, 2, 8),
+      );
+      final message = core.Message.text(
+        id: 'm1',
+        authorId: _me,
+        text: 'hi',
+        metadata: {ChatForwardOrigin.metadataKey: origin.toJson()},
+      );
+      final read = ChatForwardOrigin.of(message)!;
+      expect(read.authorId, _other);
+      expect(read.authorName, 'Bob');
+      expect(read.createdAt, DateTime.utc(2026, 10, 2, 8));
+    });
+
+    test('is null for a message that was not forwarded', () {
+      final message = core.Message.text(id: 'm1', authorId: _me, text: 'hi');
+      expect(ChatForwardOrigin.of(message), isNull);
+    });
   });
 }

@@ -63,6 +63,9 @@ class PresenceWatch {
     MultiStreamController<UserOnlineStatus> listener,
   ) async {
     _listeners.remove(listener);
+    // Already released (e.g. by `SupabaseChatCore.closeSession`), which
+    // closed every listener.
+    if (_disposed) return;
     if (_listeners.isEmpty) {
       // Unregister first, so a watch requested while this one is still
       // shutting down is a fresh one rather than this disposed instance.
@@ -76,7 +79,9 @@ class PresenceWatch {
     if (_disposed) return;
     _disposed = true;
     for (final listener in _listeners.toList()) {
-      await listener.close();
+      // Not awaited: the done event is only delivered once the listener
+      // resumes a paused subscription.
+      unawaited(listener.close());
     }
     _listeners.clear();
     await client.removeChannel(_channel);

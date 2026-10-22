@@ -48,6 +48,19 @@ final page = await SupabaseChatCore.instance.users(
 
 `user(uid: id)` returns a single user. At the UI boundary, `ChatUser.toCoreUser()` converts it to the `flutter_chat_core` `User` expected by `Chat.resolveUser`.
 
+### Signing out
+
+Close the chat session right **before** signing out:
+
+```dart
+await SupabaseChatCore.instance.closeSession();
+await Supabase.instance.client.auth.signOut();
+```
+
+`closeSession()` sets the user offline (see [Online status](#online-status)) and closes everything opened for them: the own presence, the room channels, the presence watches and the `roomsChanges()`, `room()` and `userOnlineStatus()` streams, which complete. The order matters: signing out re-authorizes Realtime with the anon key, which private room channels reject, so channels still open at that point report subscription errors instead of leaving cleanly.
+
+Signing out or switching user without `closeSession()` still closes the session, as soon as the auth state change arrives: a listener never keeps receiving the data of a user that is no longer signed in. `SupabaseChatRoomsController` clears its rooms when nobody is signed in, and its next `loadFirstPage()` listens again for whoever is signed in then. Dispose the `SupabaseChatController`s of the previous user as usual.
+
 ## Rooms
 
 ### Creating rooms
@@ -107,6 +120,7 @@ Building your own list instead? `rooms(filter:, offset:, limit:)` returns a page
 
 * `getRoom(id)` returns the room, or `null` if it doesn't exist or the user isn't a member.
 * `room(id)` returns a stream that emits the room right away and on every change to it or its members, and completes when the room is deleted or the user leaves it.
+* `ChatRoom` equality compares every field, so a room refetched after a change (a new message, the unread count, a rename) is not `==` to the copy you hold and isn't dropped as unchanged by lists or `ValueNotifier`s. Match rooms by `id` to find the same room.
 * A `ChatRoom` exposes `users` (each with its per-room `role`), `member(id)`, `roleOf(id)`, `otherUser(myId)` for direct rooms, `lastMessage`, `unreadCount`, `lastReadAt`, `isPinned`/`pinnedAt` and `isMuted`/`mutedUntil` (`ChatRoom.mutedForever` when muted for ever).
 
 ### Managing rooms
@@ -226,6 +240,21 @@ With `autoMarkAsRead` the controller calls `markRoomAsRead` once the first page 
 * `resolveMessage(id)` returns a message from the loaded ones or fetches it once (cached), e.g. to render the quoted message.
 * `jumpToMessage(id)` loads older pages until the message is found (at most `maxPages`, default 20) and scrolls to it.
 * `SupabaseChatCore.instance.searchMessages(roomId, query)` returns the text messages containing `query` (case-insensitive), newest first.
+
+### Forwarding
+
+`SupabaseChatCore.instance.forwardMessages(from, messages, toRoomId)` sends `messages` of room `from` to room `toRoomId` as new messages of the logged-in user, who must be a member of both rooms:
+
+```dart
+await SupabaseChatCore.instance.forwardMessages(room, selectedMessages, targetRoomId);
+```
+
+* The copies are sent oldest first, a millisecond apart, so they keep their order.
+* Each copy keeps the content and the metadata, without the reply, the reactions, the pin and the edited mark.
+* Its metadata stores a `ChatForwardOrigin` under `forwardedFrom`: the original author's id and name and the original date. Read it with `ChatForwardOrigin.of(message)`, which returns `null` for messages that weren't forwarded, e.g. to show a "Forwarded from ..." header. Forwarding a forwarded message keeps the first origin.
+* The author's name is a snapshot taken when forwarding: the recipients may not share a room with the original author, so they can't read their profile.
+* Attachments stored in the chat assets bucket are copied into `toRoomId`'s folder, since the Storage policies only let members of a room read its files; other URLs are kept as they are.
+* `TextStreamMessage`s and `UnsupportedMessage`s can't be stored and are skipped.
 
 ### Typing indicator
 
