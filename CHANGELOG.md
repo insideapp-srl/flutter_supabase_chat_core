@@ -1,3 +1,45 @@
+## [2.0.0-rc.2] - 2026-10-22
+#### [@rickypid](https://github.com/rickypid)
+
+Second release candidate of 2.0.0: message forwarding and a clean session
+teardown on sign out. No database changes since rc.1.
+
+### Added
+
+* `SupabaseChatCore.forwardMessages`: forwards messages to another room as
+  new messages of the logged-in user, oldest first. Each copy stores its
+  `ChatForwardOrigin` (original author and date) in the metadata and drops
+  reply, reactions, pin and edited mark; chat attachments are copied into the
+  destination room's folder.
+* `ChatForwardOrigin`: reads the origin of a forwarded message
+  (`ChatForwardOrigin.of(message)`).
+* `SupabaseChatCore.closeSession()`: closes the own presence, room channels,
+  presence watches and the `roomsChanges`/`room`/`userOnlineStatus` streams.
+  Call it right before signing out, so private room channels leave cleanly
+  instead of reporting subscription errors.
+
+### Changed
+
+* Signing out or switching user closes the session automatically: the
+  `roomsChanges`, `room` and `userOnlineStatus` streams complete instead of
+  outliving the user, and `SupabaseChatRoomsController` clears its rooms
+  (the next `loadFirstPage` listens again for the new user).
+* `ChatRoom` equality compares every field, not only the `id`: a refetched
+  room is no longer dropped as unchanged by lists and `ValueNotifier`s.
+  Match rooms by `id` to find the same room.
+* The example app calls `closeSession()` before signing out.
+* README and documentation site cover forwarding, signing out and the
+  session lifecycle.
+
+### Fixed
+
+* Auth state changes arriving in bursts (initial session, signed in, token
+  refreshed) could open the own presence channel twice.
+* Late status callbacks of released room and presence channels changed the
+  state of the current ones.
+* Documentation site: "Edit this page" links, and links to the Flyer Chat
+  2.x documentation instead of 1.x.
+
 ## [2.0.0-rc.1] - 2026-10-21
 #### [@rickypid](https://github.com/rickypid)
 
