@@ -19,7 +19,7 @@ reference while porting.
 
 ```yaml
 dependencies:
-  flutter_supabase_chat_core: ^2.0.0-rc.1
+  flutter_supabase_chat_core: ^2.0.0-rc.2
   flutter_chat_core: ^2.9.0        # replaces flutter_chat_types
   flutter_chat_ui: ^2.11.1         # if you use the UI (2.x API)
   flyer_chat_text_message: ^2.6.0  # one package per message type you render

@@ -86,6 +86,16 @@ class SupabaseChatRoomsController extends ChangeNotifier {
           _notify();
         }
       },
+      // The changes end with the session (or right away when nobody is
+      // signed in): the next [loadFirstPage] listens again, for whoever is
+      // signed in then.
+      onDone: () {
+        _changes = null;
+        if (_chatCore.loggedUserId == null && _rooms.isNotEmpty) {
+          _rooms = const [];
+          _notify();
+        }
+      },
     );
   }
 

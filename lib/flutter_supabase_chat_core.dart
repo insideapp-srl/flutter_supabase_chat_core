@@ -4,6 +4,7 @@
 /// Supabase Realtime.
 library;
 
+export 'src/class/chat_forward_origin.dart';
 export 'src/class/chat_room.dart';
 export 'src/class/chat_room_change.dart';
 export 'src/class/chat_room_role.dart';

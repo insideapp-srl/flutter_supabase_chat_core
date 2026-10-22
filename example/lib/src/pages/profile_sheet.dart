@@ -158,6 +158,9 @@ class _ProfileSheetState extends State<ProfileSheet> {
           TextButton.icon(
             onPressed: () async {
               Navigator.of(context).pop();
+              // Closed before signing out: the anon key that Realtime gets
+              // afterwards can't leave the private room channels cleanly.
+              await _chat.closeSession();
               await Supabase.instance.client.auth.signOut();
             },
             icon: const Icon(Icons.logout_rounded),

@@ -46,7 +46,7 @@ const config: Config = {
                 docs: {
                     sidebarPath: './sidebars.ts',
                     editUrl:
-                        'https://github.com/insideapp-srl/flutter_supabase_chat_core',
+                        'https://github.com/insideapp-srl/flutter_supabase_chat_core/tree/main/doc/',
                     routeBasePath: '/',
                 },
 
@@ -80,12 +80,7 @@ const config: Config = {
                     position: 'left',
                     label: 'Tutorial',
                 },
-                {to: 'https://docs.flyer.chat/flutter/chat-ui/', label: 'Chat UI', position: 'left'},
-                {
-                    to: 'https://docs.flyer.chat/flutter/firebase/firebase-overview',
-                    label: 'Firebase Core',
-                    position: 'left'
-                },
+                {to: 'https://flyer.chat/docs/flutter/introduction/', label: 'Chat UI', position: 'left'},
                 {
                     href: 'https://github.com/insideapp-srl/flutter_supabase_chat_core',
                     label: 'GitHub',

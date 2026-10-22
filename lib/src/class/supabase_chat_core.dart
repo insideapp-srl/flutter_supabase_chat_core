@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../util.dart';
+import 'chat_forward_origin.dart';
 import 'chat_room.dart';
 import 'chat_room_change.dart';
 import 'chat_room_role.dart';
@@ -97,11 +98,40 @@ class SupabaseChatCore {
   UserOnlineStatus _lastOnlineStatus = UserOnlineStatus.offline;
   final _ownStatusController = StreamController<UserOnlineStatus>.broadcast();
 
-  Future<void> _onAuthStateChange() async {
+  /// Id of the user the session resources (Realtime channels and streams)
+  /// were opened for; see [closeSession].
+  String? _sessionUserId;
+  Future<void> _sessionQueue = Future<void>.value();
+
+  /// Closers of the [roomsChanges] and [room] streams being listened to.
+  final Set<Future<void> Function()> _sessionClosers = {};
+
+  /// Runs [body] after the session operations already queued: auth state
+  /// changes fire in bursts (initial session, signed in, token refreshed),
+  /// and interleaving them would open the presence channel twice.
+  Future<void> _serialized(Future<void> Function() body) {
+    final next = _sessionQueue.then((_) => body());
+    // The queue only orders the operations: a failure is reported to the
+    // caller through [next], and must not stop the ones queued after it.
+    _sessionQueue = next.then<void>((_) {}, onError: (Object _) {});
+    return next;
+  }
+
+  void _onAuthStateChange() => unawaited(_serialized(_applyAuthState));
+
+  Future<void> _applyAuthState() async {
     final uid = loggedUserId;
-    if (uid != _presenceUserId) {
-      await _stopOwnPresence();
+    if (uid != _sessionUserId) {
+      // Signed out, or another user signed in: what was opened for the
+      // previous user can't be used any more (Realtime is re-authorized
+      // with the new token, so private channels would fail).
+      await _releaseSession();
+      _sessionUserId = uid;
       if (uid != null) _startOwnPresence(uid);
+    } else if (uid != null && _ownPresenceChannel == null) {
+      // The session was closed with [closeSession] but the user is still
+      // signed in (e.g. the sign out failed): bring the presence back.
+      _startOwnPresence(uid);
     }
     if (uid == null) {
       _loggedUser = null;
@@ -118,6 +148,37 @@ class SupabaseChatCore {
     }
   }
 
+  /// Closes everything this instance opened for the logged-in user: the
+  /// own presence (going offline first, see [setPresenceStatus]), the room
+  /// channels, the presence watches, and the [roomsChanges], [room] and
+  /// [userOnlineStatus] streams, which complete.
+  ///
+  /// Call it right **before** signing out. Signing out re-authorizes
+  /// Realtime with the anon key, which private room channels reject: closed
+  /// beforehand they leave cleanly instead of reporting subscription
+  /// errors. Signing out or switching user without it also closes the
+  /// session, as soon as the auth state change arrives.
+  Future<void> closeSession() async {
+    await setPresenceStatus(UserOnlineStatus.offline);
+    await _serialized(_releaseSession);
+  }
+
+  Future<void> _releaseSession() async {
+    await _stopOwnPresence();
+    for (final close in _sessionClosers.toList()) {
+      await close();
+    }
+    _sessionClosers.clear();
+    for (final watch in _presenceWatches.values.toList()) {
+      await watch.dispose();
+    }
+    _presenceWatches.clear();
+    for (final channel in _roomChannels.values.toList()) {
+      await channel.dispose();
+    }
+    _roomChannels.clear();
+  }
+
   /// Reloads [loggedUser] from Supabase and returns it.
   Future<ChatUser?> refreshLoggedUser() async {
     final uid = loggedUserId;
@@ -127,10 +188,13 @@ class SupabaseChatCore {
 
   void _startOwnPresence(String uid) {
     _presenceUserId = uid;
-    _ownPresenceChannel = client.channel(
+    final channel = _ownPresenceChannel = client.channel(
       '${config.realtimeOnlineUserPrefixChannel}$uid',
     );
-    _ownPresenceChannel!.subscribe((status, error) async {
+    channel.subscribe((status, error) async {
+      // A late status of a channel already replaced must not change the
+      // state of the current one.
+      if (_ownPresenceChannel != channel) return;
       _ownPresenceSubscribed = status == RealtimeSubscribeStatus.subscribed;
       if (_ownPresenceSubscribed &&
           _lastOnlineStatus == UserOnlineStatus.online) {
@@ -198,15 +262,19 @@ class SupabaseChatCore {
       });
     }
     return Stream.multi((listener) {
-      final watch = _presenceWatches.putIfAbsent(
-        uid,
-        () => PresenceWatch(
+      final watch = _presenceWatches.putIfAbsent(uid, () {
+        late final PresenceWatch created;
+        return created = PresenceWatch(
           client: client,
           topic: '${config.realtimeOnlineUserPrefixChannel}$uid',
           uid: uid,
-          onEmpty: () => _presenceWatches.remove(uid),
-        ),
-      );
+          // Only unregister itself: once [closeSession] disposed it, a new
+          // watch of the same user may already be registered.
+          onEmpty: () {
+            if (_presenceWatches[uid] == created) _presenceWatches.remove(uid);
+          },
+        );
+      });
       watch.addListener(listener);
       listener.onCancel = () => watch.removeListener(listener);
     });
@@ -219,14 +287,19 @@ class SupabaseChatCore {
   /// controllers are open on that room: Realtime only allows one join per
   /// topic per connection.
   @internal
-  RoomChannel roomChannel(String roomId) => _roomChannels.putIfAbsent(
-    roomId,
-    () => RoomChannel(
-      client: client,
-      topic: '${config.realtimeRoomChannelPrefix}$roomId',
-      onEmpty: () => _roomChannels.remove(roomId),
-    ),
-  );
+  RoomChannel roomChannel(String roomId) =>
+      _roomChannels.putIfAbsent(roomId, () {
+        late final RoomChannel created;
+        return created = RoomChannel(
+          client: client,
+          topic: '${config.realtimeRoomChannelPrefix}$roomId',
+          // Only unregister itself: once [closeSession] disposed it, a new
+          // channel of the same room may already be registered.
+          onEmpty: () {
+            if (_roomChannels[roomId] == created) _roomChannels.remove(roomId);
+          },
+        );
+      });
 
   // ---------------------------------------------------------------------------
   // Storage
@@ -618,7 +691,6 @@ class SupabaseChatCore {
     if (uid == null) return const Stream.empty();
 
     late final StreamController<ChatRoom> controller;
-    RealtimeChannel? channel;
     var refreshing = Future<void>.value();
 
     Future<void> refresh() => refreshing = refreshing.then((_) async {
@@ -636,76 +708,69 @@ class SupabaseChatCore {
       }
     });
 
-    controller = StreamController<ChatRoom>(
-      onListen: () {
-        channel = client
-            .channel(_uniqueTopic('${config.schema}:room:$roomId'))
-            .onPostgresChanges(
-              event: PostgresChangeEvent.update,
-              schema: config.schema,
-              table: config.roomsTableName,
-              filter: PostgresChangeFilter(
-                type: PostgresChangeFilterType.eq,
-                column: 'id',
-                value: roomId,
-              ),
-              callback: (_) => refresh(),
-            )
-            .onPostgresChanges(
-              event: PostgresChangeEvent.insert,
-              schema: config.schema,
-              table: config.roomMembersTableName,
-              filter: PostgresChangeFilter(
-                type: PostgresChangeFilterType.eq,
-                column: 'roomId',
-                value: roomId,
-              ),
-              callback: (_) => refresh(),
-            )
-            .onPostgresChanges(
-              event: PostgresChangeEvent.update,
-              schema: config.schema,
-              table: config.roomMembersTableName,
-              filter: PostgresChangeFilter(
-                type: PostgresChangeFilterType.eq,
-                column: 'roomId',
-                value: roomId,
-              ),
-              callback: (_) => refresh(),
-            )
-            // DELETE events can't be filtered (Realtime only ships the old
-            // row's primary key for them): refetch on any, cheap enough.
-            .onPostgresChanges(
-              event: PostgresChangeEvent.delete,
-              schema: config.schema,
-              table: config.roomMembersTableName,
-              callback: (payload) {
-                final old = payload.oldRecord;
-                if (old['roomId'] == null || old['roomId'] == roomId) {
-                  refresh();
-                }
-              },
-            )
-            .onPostgresChanges(
-              event: PostgresChangeEvent.delete,
-              schema: config.schema,
-              table: config.roomsTableName,
-              callback: (payload) {
-                if (payload.oldRecord['id'] == roomId) refresh();
-              },
-            )
-            .subscribe(
-              (status, error) =>
-                  _reportSubscribeError(controller, status, error),
-            );
-        refresh();
-      },
-      onCancel: () async {
-        final c = channel;
-        channel = null;
-        if (c != null) await client.removeChannel(c);
-      },
-    );
+    controller = _sessionStream<ChatRoom>(() {
+      final channel = client
+          .channel(_uniqueTopic('${config.schema}:room:$roomId'))
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: config.schema,
+            table: config.roomsTableName,
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'id',
+              value: roomId,
+            ),
+            callback: (_) => refresh(),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: config.schema,
+            table: config.roomMembersTableName,
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'roomId',
+              value: roomId,
+            ),
+            callback: (_) => refresh(),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: config.schema,
+            table: config.roomMembersTableName,
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'roomId',
+              value: roomId,
+            ),
+            callback: (_) => refresh(),
+          )
+          // DELETE events can't be filtered (Realtime only ships the old
+          // row's primary key for them): refetch on any, cheap enough.
+          .onPostgresChanges(
+            event: PostgresChangeEvent.delete,
+            schema: config.schema,
+            table: config.roomMembersTableName,
+            callback: (payload) {
+              final old = payload.oldRecord;
+              if (old['roomId'] == null || old['roomId'] == roomId) {
+                refresh();
+              }
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.delete,
+            schema: config.schema,
+            table: config.roomsTableName,
+            callback: (payload) {
+              if (payload.oldRecord['id'] == roomId) refresh();
+            },
+          )
+          .subscribe(
+            (status, error) => _reportSubscribeError(controller, status, error),
+          );
+      refresh();
+      return channel;
+    });
     return controller.stream;
   }
 
@@ -753,7 +818,6 @@ class SupabaseChatCore {
     if (uid == null) return const Stream.empty();
 
     late final StreamController<ChatRoomChange> controller;
-    RealtimeChannel? channel;
     var queue = Future<void>.value();
 
     void upsert(String roomId) => queue = queue.then((_) async {
@@ -775,65 +839,91 @@ class SupabaseChatCore {
       if (!controller.isClosed) controller.add(ChatRoomRemoved(roomId));
     });
 
-    controller = StreamController<ChatRoomChange>(
-      onListen: () {
-        channel = client
-            .channel(_uniqueTopic('${config.schema}:rooms:$uid'))
-            .onPostgresChanges(
-              event: PostgresChangeEvent.update,
-              schema: config.schema,
-              table: config.roomsTableName,
-              callback: (payload) => upsert(payload.newRecord['id'].toString()),
-            )
-            .onPostgresChanges(
-              event: PostgresChangeEvent.delete,
-              schema: config.schema,
-              table: config.roomsTableName,
-              callback: (payload) {
-                final id = payload.oldRecord['id'];
-                if (id != null) remove(id.toString());
-              },
-            )
-            .onPostgresChanges(
-              event: PostgresChangeEvent.insert,
-              schema: config.schema,
-              table: config.roomMembersTableName,
-              filter: PostgresChangeFilter(
-                type: PostgresChangeFilterType.eq,
-                column: 'userId',
-                value: uid,
-              ),
-              callback: (payload) =>
-                  upsert(payload.newRecord['roomId'].toString()),
-            )
-            // Unfilterable (see [room]): the old row only carries the
-            // primary key, which does include roomId/userId here.
-            .onPostgresChanges(
-              event: PostgresChangeEvent.delete,
-              schema: config.schema,
-              table: config.roomMembersTableName,
-              callback: (payload) {
-                final old = payload.oldRecord;
-                if (old['roomId'] == null) return;
-                if (old['userId'] == uid) {
-                  remove(old['roomId'].toString());
-                } else {
-                  upsert(old['roomId'].toString());
-                }
-              },
-            )
-            .subscribe(
-              (status, error) =>
-                  _reportSubscribeError(controller, status, error),
-            );
-      },
-      onCancel: () async {
-        final c = channel;
-        channel = null;
-        if (c != null) await client.removeChannel(c);
-      },
+    controller = _sessionStream<ChatRoomChange>(
+      () => client
+          .channel(_uniqueTopic('${config.schema}:rooms:$uid'))
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: config.schema,
+            table: config.roomsTableName,
+            callback: (payload) => upsert(payload.newRecord['id'].toString()),
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.delete,
+            schema: config.schema,
+            table: config.roomsTableName,
+            callback: (payload) {
+              final id = payload.oldRecord['id'];
+              if (id != null) remove(id.toString());
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: config.schema,
+            table: config.roomMembersTableName,
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'userId',
+              value: uid,
+            ),
+            callback: (payload) =>
+                upsert(payload.newRecord['roomId'].toString()),
+          )
+          // Unfilterable (see [room]): the old row only carries the
+          // primary key, which does include roomId/userId here.
+          .onPostgresChanges(
+            event: PostgresChangeEvent.delete,
+            schema: config.schema,
+            table: config.roomMembersTableName,
+            callback: (payload) {
+              final old = payload.oldRecord;
+              if (old['roomId'] == null) return;
+              if (old['userId'] == uid) {
+                remove(old['roomId'].toString());
+              } else {
+                upsert(old['roomId'].toString());
+              }
+            },
+          )
+          .subscribe(
+            (status, error) => _reportSubscribeError(controller, status, error),
+          ),
     );
     return controller.stream;
+  }
+
+  /// A stream controller whose Realtime channel, opened by [subscribe] when
+  /// the stream is listened to, is removed when the listener cancels or
+  /// when the session closes ([closeSession], sign out, user switch): the
+  /// stream then completes, so a listener never keeps receiving the data of
+  /// a user that is no longer signed in.
+  StreamController<T> _sessionStream<T>(RealtimeChannel Function() subscribe) {
+    late final StreamController<T> controller;
+    RealtimeChannel? channel;
+    late final Future<void> Function() closeForSession;
+
+    Future<void> release() async {
+      _sessionClosers.remove(closeForSession);
+      final c = channel;
+      channel = null;
+      if (c != null) await client.removeChannel(c);
+    }
+
+    closeForSession = () async {
+      await release();
+      // Not awaited: the done event is only delivered once the listener
+      // resumes a paused subscription.
+      if (!controller.isClosed) unawaited(controller.close());
+    };
+
+    controller = StreamController<T>(
+      onListen: () {
+        channel = subscribe();
+        _sessionClosers.add(closeForSession);
+      },
+      onCancel: release,
+    );
+    return controller;
   }
 
   /// Applies [change] to [rooms] and returns the resulting list, sorted by
@@ -1090,6 +1180,90 @@ class SupabaseChatCore {
     });
   }
 
+  /// Forwards [messages] of room [from] to room [toRoomId], oldest first, as
+  /// new messages of the logged-in user (who must be a member of both).
+  ///
+  /// Each copy keeps the content and the metadata, without the reply,
+  /// reactions, pin and edited mark, and stores its [ChatForwardOrigin]:
+  /// the original author and date, kept from the first forward when a
+  /// forwarded message is forwarded again. Attachments stored in the chat
+  /// assets bucket are copied into [toRoomId]'s folder: the members of the
+  /// destination can't read the files of a room they aren't in. Messages
+  /// that can't be persisted (see [messageToRow]) are skipped.
+  Future<void> forwardMessages(
+    ChatRoom from,
+    List<core.Message> messages,
+    String toRoomId,
+  ) async {
+    final uid = _requireUserId('forwardMessages');
+    final sorted =
+        [
+          for (final message in messages)
+            if (message is! core.TextStreamMessage &&
+                message is! core.UnsupportedMessage)
+              message,
+        ]..sort(
+          (a, b) => (a.createdAt ?? DateTime(0)).compareTo(
+            b.createdAt ?? DateTime(0),
+          ),
+        );
+    if (sorted.isEmpty) return;
+    return _guard('forwardMessages', () async {
+      final now = DateTime.now().toUtc();
+      final rows = <Map<String, dynamic>>[];
+      for (final (index, message) in sorted.indexed) {
+        final origin =
+            ChatForwardOrigin.of(message) ??
+            ChatForwardOrigin(
+              authorId: message.authorId,
+              authorName: from.member(message.authorId)?.fullName,
+              createdAt: message.createdAt,
+            );
+        final metadata = {
+          ...?message.metadata,
+          ChatForwardOrigin.metadataKey: origin.toJson(),
+        }..remove('edited');
+        final row = messageToRow(message)
+          ..remove('status')
+          ..remove('reactions')
+          ..remove('pinned')
+          ..remove('replyToMessageId')
+          ..['id'] = const Uuid().v7()
+          ..['roomId'] = toRoomId
+          ..['authorId'] = uid
+          // Spaced by a millisecond: the copies keep their order.
+          ..['createdAt'] = formatChatDate(
+            now.add(Duration(milliseconds: index)),
+          )
+          ..['metadata'] = metadata;
+        final source = row['source'];
+        if (source is String) {
+          row['source'] = await _copyAssetToRoom(source, toRoomId);
+        }
+        rows.add(row);
+      }
+      await client
+          .schema(config.schema)
+          .from(config.messagesTableName)
+          .insert(rows);
+    });
+  }
+
+  /// Copies the chat asset at [url] into [roomId]'s folder and returns the
+  /// copy's URL; [url] itself when it isn't a chat asset (e.g. an external
+  /// link).
+  Future<String> _copyAssetToRoom(String url, String roomId) async {
+    final prefix = getAssetUrl('');
+    if (!url.startsWith(prefix)) return url;
+    final path = Uri.decodeComponent(url.substring(prefix.length));
+    final fileName = path.split('/').last;
+    // Asset names are `<uuid v7>-<name>`: keep the name only.
+    final name = RegExp(r'^[0-9a-f-]{36}-(.+)$').firstMatch(fileName)?[1];
+    final copy = '$roomId/${const Uuid().v7()}-${name ?? fileName}';
+    await client.storage.from(config.chatAssetsBucket).copy(path, copy);
+    return getAssetUrl(copy);
+  }
+
   /// Updates [message]'s content and metadata in room [roomId]. Only the
   /// author can update a message. Status, reactions and the pinned flag are
   /// left alone: see [markRoomAsRead], [toggleReaction] and
@@ -1152,15 +1326,7 @@ class SupabaseChatCore {
   /// Only needed for instances you created yourself, not for [instance].
   Future<void> dispose() async {
     await _authSubscription.cancel();
-    await _stopOwnPresence();
-    for (final watch in _presenceWatches.values.toList()) {
-      await watch.dispose();
-    }
-    _presenceWatches.clear();
-    for (final channel in _roomChannels.values.toList()) {
-      await channel.dispose();
-    }
-    _roomChannels.clear();
+    await _serialized(_releaseSession);
     await _ownStatusController.close();
   }
 }

@@ -3,7 +3,7 @@ id: testing
 title: Testing and development
 ---
 
-The repository has three test suites and a few scripts to run them against a local Supabase stack, started with the [Supabase CLI](https://supabase.com/docs/guides/cli/getting-started) (`supabase/config.toml` exposes the `chats` schema). The scripts are Bash and need `psql`, `curl` and Docker.
+The repository has three test suites and a few scripts to run them against a local Supabase stack, started with the [Supabase CLI](https://supabase.com/docs/guides/local-development/cli/getting-started) (`supabase/config.toml` exposes the `chats` schema). The scripts are Bash and need `psql`, `curl` and Docker.
 
 ## Unit tests
 
