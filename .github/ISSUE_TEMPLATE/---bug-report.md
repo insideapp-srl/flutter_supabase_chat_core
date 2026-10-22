@@ -12,7 +12,7 @@ Hello 👋 Thank you for submitting an issue!
 
 🚨 Please read the following carefully before opening a new issue. Your issue may be closed if it doesn't provide the required pieces of information.
 
-🚨 Before you start, please make sure your issue is understandable and reproducible. To make your issue readable make sure you use valid Markdown syntax. https://guides.github.com/features/mastering-markdown/
+🚨 Before you start, please make sure your issue is understandable and reproducible. To make your issue readable make sure you use valid Markdown syntax. https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax
 
 🚨 Please ensure you have also read and understand the contributing guide.
 https://github.com/insideapp-srl/flutter_supabase_chat_core/blob/main/CONTRIBUTING.md

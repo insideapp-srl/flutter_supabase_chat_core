@@ -73,6 +73,9 @@ class RoomChannel {
       );
     }
     _channel.subscribe((status, error) {
+      // Statuses arriving after the release (e.g. the session was closed
+      // while Realtime was re-authorizing the channel) concern nobody.
+      if (_disposed) return;
       _subscribed = status == RealtimeSubscribeStatus.subscribed;
       if (status == RealtimeSubscribeStatus.channelError &&
           '$error'.contains('Unauthorized')) {
@@ -244,6 +247,9 @@ class RoomChannel {
   }
 
   Future<void> _releaseIfUnused() async {
+    // Already released (e.g. by `SupabaseChatCore.closeSession`) before its
+    // last listener left.
+    if (_disposed) return;
     if (_typingListeners.isNotEmpty || _messageListeners.isNotEmpty) return;
     // Unregister first, so a channel requested while this one is still
     // shutting down is a fresh one rather than this disposed instance.

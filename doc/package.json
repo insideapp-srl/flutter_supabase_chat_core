@@ -17,7 +17,7 @@
   "dependencies": {
     "@docusaurus/core": "3.10.2",
     "@docusaurus/preset-classic": "3.10.2",
-    "@mdx-js/react": "^3.1.0",
+    "@mdx-js/react": "^3.1.1",
     "clsx": "^2.1.1",
     "prism-react-renderer": "^2.4.1",
     "react": "^18.3.1",
@@ -45,6 +45,9 @@
     "node": ">=18.0"
   },
   "overrides": {
-    "serialize-javascript": "^7.0.5"
+    "serialize-javascript": "^7.0.5",
+    "tinypool": "^2.1.2",
+    "uuid": "^11.1.1",
+    "postcss-selector-parser": "^7.1.6"
   }
 }

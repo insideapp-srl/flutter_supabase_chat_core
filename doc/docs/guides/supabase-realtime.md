@@ -57,6 +57,8 @@ Realtime allows a single join per topic per connection, so a `SupabaseChatCore` 
 
 The Postgres Changes subscriptions behind `room(id)` and `roomsChanges()` use a unique topic per subscription, so several listeners of the same data can coexist. A failed or timed-out subscription is surfaced as a `SupabaseChatCoreRequestException` on the stream.
 
+Everything above belongs to the signed-in user's session. `closeSession()`, a sign out or a switch to another user removes the room channels, the presence watches and the subscriptions behind `room(id)`, `roomsChanges()` and `userOnlineStatus()`, whose streams complete. Call `closeSession()` before signing out: once signed out, Realtime is re-authorized with the anon key and private room channels would fail instead of leaving cleanly. Auth state changes arrive in bursts (initial session, signed in, token refreshed) and are handled one at a time, so the own presence channel is opened once; status callbacks of channels already released are ignored.
+
 ## Typing indicator
 
 The typing indicator used Realtime Presence up to 1.x. Supabase rate-limits Presence `track()` calls per client and drops the channel when the limit is exceeded, which a typing indicator updating every few hundred milliseconds hits within seconds ([issue #38](https://github.com/insideapp-srl/flutter_supabase_chat_core/issues/38)). Since 2.x it uses Broadcast events on the room channel, which are cheap and ephemeral.
