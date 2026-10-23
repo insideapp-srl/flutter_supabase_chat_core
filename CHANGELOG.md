@@ -1,3 +1,76 @@
+## [2.0.0-rc.3] - 2026-10-23
+#### [@rickypid](https://github.com/rickypid)
+
+Third release candidate of 2.0.0: security fixes from an audit of the
+package. Re-run the SQL scripts (`01`..`05`, `99`, and `06` if you use it)
+and update the package together: the Realtime protocol changed, see
+[MIGRATION.md](MIGRATION.md#upgrading-from-a-200-release-candidate).
+
+### Security
+
+* A message `source` could make the `cleanup-media` Edge Function delete any
+  Storage object of the project (other rooms, avatars, other buckets) with the
+  service role: the media queue only accepts a `chats_assets` object in the
+  deleted message's own room folder, not referenced by another message, and
+  the function checks every row again.
+* `httpSupabaseHeaders` sent the access token to any URL, and the example and
+  the docs attached it to avatars and message sources other users choose:
+  `httpSupabaseHeadersFor(url)` sends it only to this project's Storage;
+  `httpSupabaseHeaders` is deprecated.
+* A member of a direct room could add third parties to it, or turn it into a
+  group, through unrestricted `UPDATE`s of `chats.room_members`/`chats.rooms`:
+  `UPDATE` is granted per column (rooms: name, image, metadata; members: role;
+  profiles: no global `role`) and role changes are for group admins.
+* Members could forge message events (fake, edited or hidden messages) on the
+  room's Realtime channel: only the database sends on `chats:room:<roomId>`,
+  the typing indicator moved to `chats:room:<roomId>:typing`.
+* Reusing another message's id let a member pin or rewrite reactions of
+  messages of other rooms, or get an admin deleting their copy to delete the
+  original too: message ids are unique (`chats.message_ids`) and the RPCs
+  update exactly the row they authorized.
+* Any member can no longer overwrite or delete another member's attachment:
+  `chats_assets` objects are updated by their uploader, deleted by their
+  uploader or a group admin.
+* Online status could be faked or watched with the anon key: presence
+  channels are private, any signed-in user may watch, only the owner
+  publishes.
+* Room and membership changes travel on a private per-user channel
+  (`chats:user:<uid>`) instead of Postgres Changes, whose `DELETE` events told
+  every subscriber who left which room; a member removed from a room is
+  disconnected from its channels right away.
+* The forward origin (`forwardedFrom`) is attested by the database from the
+  forwarded message instead of being written by the client.
+* Message time is assigned by the database: a client `createdAt` far from its
+  clock is rejected (a far-future date blocked the partition maintenance and
+  stayed the room's last message), and it can't be changed afterwards.
+* Authors edit the content of their messages only: status, reactions and pin
+  change through the RPCs, `updatedAt` is set by the database.
+
+### Fixed
+
+* The `partman-run-maintenance` cron job always failed (its command shared a
+  transaction block with a `SELECT`): the procedure runs alone, and a separate
+  `chats-messages-partitions-rls` job plus an event trigger secure new
+  `chats.messages` partitions as soon as they are created.
+* `cleanup-media` retries a failing object a few times and then leaves it
+  aside (`attempts`, `lastError`) instead of blocking the queue.
+* `retryMessage` of a message that did reach the server marks it sent.
+* The example app saves downloaded files under a sanitized name and asks
+  before opening them (documents and media only).
+
+### Changed
+
+* `sendMessage` and `forwardMessages` let the database set `createdAt`.
+* `ChatForwardOrigin.claim` builds the forward request; the stored origin is
+  read with `ChatForwardOrigin.of` as before.
+* `SupabaseChatCoreConfig.realtimeUserChannelPrefix` (`chats:user:`).
+* `chats.rooms` and `chats.room_members` are no longer in the
+  `supabase_realtime` publication.
+* CI on GitHub Actions: analysis on the minimum and latest Flutter, pana,
+  unit, database (pgTAP) and integration tests on a local Supabase stack, and
+  the documentation build; publishing to pub.dev from a version tag after a
+  manual approval; Dependabot.
+
 ## [2.0.0-rc.2] - 2026-10-22
 #### [@rickypid](https://github.com/rickypid)
 
