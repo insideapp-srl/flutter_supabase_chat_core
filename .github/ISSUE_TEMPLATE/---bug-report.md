@@ -1,6 +1,6 @@
 ---
 name: "\U0001F41B Bug report"
-about: Something isn't working? Create a report to help us improve Flyer Chat.
+about: Something isn't working? Create a report to help us improve Flutter Supabase Chat Core.
 title: ''
 labels: bug
 assignees: ''
@@ -75,4 +75,4 @@ OS version (e.g. iOS 14.5, Android 11): ...
 
 Add any other context about the problem here.
 
-<!-- Thank you for making us better 🤝--!>
+<!-- Thank you for making us better 🤝 -->

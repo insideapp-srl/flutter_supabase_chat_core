@@ -757,5 +757,90 @@ void main() {
       final profile = await bob.chat.user(uid: alice.id);
       expect(profile?.lastSeen, isNotNull);
     });
+
+    test('members cannot forge message events on the room channel', () async {
+      final room = await alice.chat.createGroupRoom(
+        name: 'Forge',
+        users: [bob.asChatUser],
+      );
+      final controller = SupabaseChatController(
+        room: room,
+        chatCore: alice.chat,
+        autoMarkAsRead: false,
+      );
+      addTearDown(controller.dispose);
+      await controller.initialLoad;
+
+      // Bob joins the message channel directly, bypassing the library.
+      final forger = bob.client.channel(
+        '${bob.chat.config.realtimeRoomChannelPrefix}${room.id}',
+        opts: const RealtimeChannelConfig(private: true),
+      )..subscribe();
+      addTearDown(() => bob.client.removeChannel(forger));
+      await realtimeReady(alice.client);
+      await realtimeReady(bob.client);
+
+      try {
+        await forger.sendBroadcastMessage(
+          event: 'INSERT',
+          payload: {
+            'record': {
+              'id': const Uuid().v7(),
+              'authorId': alice.id,
+              'roomId': room.id,
+              'type': 'text',
+              'text': 'forged',
+              'createdAt': DateTime.now().toUtc().toIso8601String(),
+            },
+          },
+        );
+      } on Object catch (e) {
+        // Refused by Realtime: what this test expects.
+        expect(e, isNotNull);
+      }
+      // A genuine message afterwards proves the channel delivers.
+      await bob.chat.sendMessage(_text(bob, 'genuine'), room.id);
+      await eventually(
+        () => controller.messages.any(
+          (m) => m is core.TextMessage && m.text == 'genuine',
+        ),
+      );
+      expect(
+        controller.messages.whereType<core.TextMessage>().map((m) => m.text),
+        isNot(contains('forged')),
+      );
+    });
+
+    test('a removed member stops receiving the room', () async {
+      final eve = await TestUser.create('Eve', 'Removed');
+      addTearDown(eve.dispose);
+      final room = await alice.chat.createGroupRoom(
+        name: 'Removal',
+        users: [eve.asChatUser],
+      );
+      final errors = <Object>[];
+      final controller = SupabaseChatController(
+        room: room,
+        chatCore: eve.chat,
+        onError: errors.add,
+        autoMarkAsRead: false,
+      );
+      addTearDown(controller.dispose);
+      await controller.initialLoad;
+      await realtimeReady(eve.client);
+
+      await alice.chat.sendMessage(_text(alice, 'before'), room.id);
+      await eventually(() => controller.messages.length == 1);
+
+      await alice.chat.removeMember(room.id, eve.id);
+      await eventually(() => errors.isNotEmpty, reason: 'removal reported');
+
+      await alice.chat.sendMessage(_text(alice, 'after'), room.id);
+      await Future<void>.delayed(const Duration(seconds: 2));
+      expect(
+        controller.messages.whereType<core.TextMessage>().map((m) => m.text),
+        ['before'],
+      );
+    });
   });
 }

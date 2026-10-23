@@ -100,7 +100,7 @@ Flyer Chat is a platform for creating in-app chat experiences using Flutter. Thi
 
 ## Requirements
 
-- `Dart >=3.8.0` and `Flutter >=3.32.0`.
+- `Dart >=3.9.0` and `Flutter >=3.35.0`.
 - A [Supabase](https://supabase.com) project (cloud or self-hosted) with:
   - the `pg_partman` and `pg_cron` extensions available (the SQL scripts create them);
   - Realtime with **Broadcast from Database** support (Supabase cloud, or self-hosted `supabase/realtime` >= v2.33): message changes are sent by a database trigger;
@@ -110,7 +110,7 @@ Flyer Chat is a platform for creating in-app chat experiences using Flutter. Thi
 
 ```yaml
 dependencies:
-  flutter_supabase_chat_core: ^2.0.0-rc.2
+  flutter_supabase_chat_core: ^2.0.0-rc.3
   supabase_flutter: ^2.17.2
   uuid: ^4.5.1
 
@@ -378,7 +378,7 @@ Call `onTyping()` on every keystroke of the composer, e.g. with your own `TextEd
 | Members | `addMembers()`, `removeMember()`, `leaveRoom()`, `setMemberRole()` |
 | Users | `users(filter:, excludeLoggedUser:)`, `user()`, `updateUser()`, `uploadUserAvatar()`, `loggedUser`, `loggedUserId`, `refreshLoggedUser()` |
 | Messages | `messages(roomId, before:, limit:)`, `message()`, `pinnedMessages()`, `searchMessages()`, `sendMessage()`, `forwardMessages()`, `updateMessage()`, `toggleReaction()`, `setMessagePinned()`, `deleteMessage()` |
-| Storage | `uploadAsset()`, `getAssetUrl()`, `httpSupabaseHeaders` (to load authenticated URLs) |
+| Storage | `uploadAsset()`, `getAssetUrl()`, `httpSupabaseHeadersFor(url)` (to load authenticated URLs: the token only goes to this project's Storage) |
 | Presence | `setPresenceStatus()`, `userOnlineStatus()` |
 | Session | `closeSession()` (before signing out), `dispose()` |
 
@@ -435,13 +435,13 @@ Hooks run on every call, so they can read state that changes at runtime. **They 
 
 | What | Transport |
 |------|-----------|
-| Message inserts/updates/deletes | Private **Broadcast** channel `chats:room:<roomId>`, sent by the `chats.broadcast_message_change` trigger (`realtime.broadcast_changes`). |
-| Typing indicator | Same channel, Broadcast events sent by clients. |
-| Rooms list, single room | **Postgres Changes** on `chats.rooms` and `chats.room_members`. |
-| Online status | **Presence** channel `online-user-<uid>`. |
+| Message inserts/updates/deletes | Private **Broadcast** channel `chats:room:<roomId>`, sent by the `chats.broadcast_message_change` trigger (`realtime.broadcast_changes`); members receive, nobody sends. |
+| Typing indicator | Private **Broadcast** channel `chats:room:<roomId>:typing`, events sent by members. |
+| Rooms list, single room | Private **Broadcast** channel `chats:user:<uid>`, sent by triggers on `chats.rooms` and `chats.room_members` to every member. |
+| Online status | Private **Presence** channel `online-user-<uid>`: any signed-in user watches, only `<uid>` publishes. |
 
 - Postgres Changes can't be used for messages: `chats.messages` is partitioned and Postgres Changes reports rows under their physical partition, so a subscription on the parent table never matches. Broadcast also authorizes once at join time instead of checking RLS per change per subscriber.
-- Room channels are private: RLS policies on `realtime.messages` only let room members join (receive) and send. One channel per room is shared by every controller open on it; a channel refused as unauthorized is released and not retried.
+- Every channel is private, authorized by RLS policies on `realtime.messages`. Since only the database sends on the message channel, a member can't forge message events for others; Postgres Changes aren't used for the rooms list because Realtime doesn't apply RLS to `DELETE` events. The channels of a room are shared by every controller open on it; a channel refused as unauthorized is released and not retried, and the channels are closed as soon as the user is removed from the room.
 - The typing indicator moved from Presence to Broadcast ([#38](https://github.com/insideapp-srl/flutter_supabase_chat_core/issues/38)): Presence `track()` calls are rate-limited and the channel was dropped while typing. Each client sends `typing: true` at most every **2 s**, `typing: false` after **3 s** of inactivity (or on send), and receivers drop a user without a fresh event after **5 s**, so a lost "stopped" event can't leave a stale indicator. Trade-off: Broadcast keeps no state, so someone opening the room while another user is already typing sees the indicator from that user's next event (at most 2 s later).
 - Online status: every `userOnlineStatus(uid)` listener of the same user shares one Presence channel, closed when the last listener cancels; the stream emits the current status first.
 
@@ -482,13 +482,13 @@ Both widgets take an optional `chatCore:` (defaults to `SupabaseChatCore.instanc
 
 | Table | INSERT | SELECT | UPDATE | DELETE |
 |-------|--------|--------|--------|--------|
-| `chats.users` | Nobody (created by the sign-up trigger) | Authenticated users | The user himself | Nobody (deleted with `auth.users`) |
-| `chats.rooms` | Nobody (only through `chats.create_room`) | Members | Admins | Admins |
-| `chats.room_members` | Group admins, group rooms only (no self-join) | Members of the same room | Admins (roles) | Yourself (leave) or admins (remove) |
-| `chats.messages` | Members, as themselves only (`authorId = auth.uid()`) | Members | The author | The author, or a group admin |
-| `realtime.messages` (topics `chats:room:*`) | Members (Broadcast only) | Members (join the channel) | – | – |
+| `chats.users` | Nobody (created by the sign-up trigger) | Authenticated users | The user himself (not the global `role`) | Nobody (deleted with `auth.users`) |
+| `chats.rooms` | Nobody (only through `chats.create_room`) | Members | Admins (name, image, metadata) | Admins |
+| `chats.room_members` | Group admins, group rooms only (no self-join) | Members of the same room | Group admins (role only) | Yourself (leave) or admins (remove) |
+| `chats.messages` | Members, as themselves only (`authorId = auth.uid()`) | Members | The author (content only) | The author, or a group admin |
+| `realtime.messages` | Typing: members; presence: the user on their own channel | Room channels: members; `chats:user:<uid>`: the user; presence: signed-in users | – | – |
 
-UPDATE policies state their rule once, in `USING`: without `WITH CHECK`, Postgres applies it to the new row too, so a row can't be moved out of the rule.
+UPDATE policies state their rule once, in `USING`: without `WITH CHECK`, Postgres applies it to the new row too, so a row can't be moved out of the rule. Which columns can be updated is limited by column privileges (`99_database_schema_permission.sql`) and, for messages, by triggers: ids are unique, the time is set by the database, status/reactions/pin change through the RPCs and the forward origin is attested from the forwarded message.
 
 Operations touching rows of other users go through `SECURITY DEFINER` RPCs that check membership themselves:
 
@@ -502,18 +502,18 @@ Operations touching rows of other users go through `SECURITY DEFINER` RPCs that 
 
 ### Storage buckets
 
-Both buckets are private: files are served through authenticated URLs (`getAssetUrl`, loaded with `httpSupabaseHeaders`).
+Both buckets are private: files are served through authenticated URLs (`getAssetUrl`, loaded with `httpSupabaseHeadersFor(url)`).
 
 | Bucket | INSERT | SELECT | UPDATE | DELETE |
 |--------|--------|--------|--------|--------|
-| `chats_assets` (`<roomId>/<file>`) | Room members | Room members | Room members | Room members |
+| `chats_assets` (`<roomId>/<file>`) | Room members | Room members | The uploader | The uploader, or a group admin |
 | `chats_user_avatar` (`<uid>/<file>`) | The user himself | Authenticated users | The user himself | The user himself |
 
 Attachments uploaded by 1.x live under the old numeric room id folder: they stay readable through `chats.room_id_migration_map` until `example/utils/migrate_storage_uuids.sh`/`.ps1` moves them to the room uuid folder (see [MIGRATION.md](MIGRATION.md)).
 
 ## Media cleanup
 
-Deleting a message deletes its row immediately. When it referenced a Storage file, the `chats.queue_media_for_deletion` trigger records the object in `chats.media_pending_deletion` (closed to clients), because SQL alone can't delete objects from the storage backend. The [`cleanup-media`](supabase/functions/cleanup-media/index.ts) Edge Function drains that queue (500 objects per call) through the Storage API.
+Deleting a message deletes its row immediately. When it referenced one of its own attachments (a `chats_assets` object in the message's room folder, not referenced by another message), the `chats.queue_media_for_deletion` trigger records the object in `chats.media_pending_deletion` (closed to clients), because SQL alone can't delete objects from the storage backend. The [`cleanup-media`](supabase/functions/cleanup-media/index.ts) Edge Function drains that queue (500 objects per call) through the Storage API, checking every row again, and leaves aside an object that keeps failing instead of blocking the queue.
 
 1. Deploy it: `supabase functions deploy cleanup-media`.
 2. Store the project URL and a service role key in Vault, once:
@@ -535,7 +535,7 @@ Without it nothing breaks: deleted messages' files simply stay in the bucket.
 | Integration tests against a local Supabase stack | `supabase start` once, then `tool/test_integration.sh` |
 | Database behaviour tests (pgTAP) | `tool/local_db.sh && supabase test db` |
 
-- `tool/local_db.sh` resets the local database, applies the SQL scripts exactly like end users do and restarts the Realtime container (after a reset its Postgres Changes poller can stay degraded). `--no-reset` applies them on top of the current database, to check they are idempotent.
+- `tool/local_db.sh` resets the local database, applies the SQL scripts exactly like end users do and restarts the Realtime container (after a reset it can stay degraded). `--no-reset` applies them on top of the current database, to check they are idempotent.
 - `tool/test_integration.sh` runs `tool/local_db.sh`, reads the local URL and keys from `supabase status` and runs `flutter test test/integration --tags integration`. Pass `--no-reset` to keep the database.
 - `tool/v1_fixture.sh` rebuilds the local database in the 1.x shape (scripts from the `main` branch, `V1_REF` to change it) with sample data; follow it with `tool/local_db.sh --no-reset` to exercise the migration.
 - `tool/seed_demo.sh` seeds demo users and conversations (incl. a voice message): sign in as `alice@demo.dev` / `Demo-password-1` (also `bob@`, `carol@`, `dave@`, `erin@demo.dev`).

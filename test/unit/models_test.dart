@@ -1,6 +1,7 @@
 import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show SupabaseClient;
 
 const _me = 'a0000000-0000-0000-0000-000000000001';
 const _other = 'b0000000-0000-0000-0000-000000000002';
@@ -267,6 +268,53 @@ void main() {
     test('is null for a message that was not forwarded', () {
       final message = core.Message.text(id: 'm1', authorId: _me, text: 'hi');
       expect(ChatForwardOrigin.of(message), isNull);
+    });
+
+    test('a forward claim only names the source message', () {
+      final claim = ChatForwardOrigin.claim(
+        sourceRoomId: 'r1',
+        sourceMessageId: 'm1',
+      );
+      expect(claim, {'sourceRoomId': 'r1', 'sourceMessageId': 'm1'});
+      final message = core.Message.text(
+        id: 'm2',
+        authorId: _me,
+        text: 'hi',
+        metadata: {ChatForwardOrigin.metadataKey: claim},
+      );
+      expect(ChatForwardOrigin.of(message), isNull);
+    });
+  });
+
+  group('SupabaseChatCore.httpSupabaseHeadersFor', () {
+    final chat = SupabaseChatCore(
+      client: SupabaseClient('http://127.0.0.1:54321', 'anon-key'),
+    );
+    tearDownAll(chat.dispose);
+
+    test('recognizes only this project storage object URLs', () {
+      expect(chat.isStorageObjectUrl(chat.getAssetUrl('r1/a.png')), isTrue);
+      expect(
+        chat.isStorageObjectUrl(
+          chat.getAssetUrl('u1/a.png', bucket: 'chats_user_avatar'),
+        ),
+        isTrue,
+      );
+      for (final url in [
+        'https://attacker.example/avatar.png',
+        'https://attacker.example/storage/v1/object/authenticated/x.png',
+        'http://127.0.0.1:9999/storage/v1/object/authenticated/x.png',
+        'http://127.0.0.1:54321/rest/v1/messages',
+        'http://127.0.0.1:54321/storage/v1/object/authenticated/../x.png',
+        'not a url',
+        '',
+      ]) {
+        expect(chat.isStorageObjectUrl(url), isFalse, reason: url);
+      }
+    });
+
+    test('sends no credentials when signed out', () {
+      expect(chat.httpSupabaseHeadersFor(chat.getAssetUrl('r1/a.png')), {});
     });
   });
 }

@@ -198,22 +198,88 @@ String voiceMimeType(String source) {
   return 'audio/mp4';
 }
 
-/// Downloads a file message (with the auth headers) and opens it.
-Future<void> openFileMessage(core.FileMessage message) async {
+/// Extensions [openFileMessage] hands to the system viewer after saving:
+/// documents and media only. Anything else (scripts, executables, archives,
+/// office files with macros, ...) is saved but not opened: a file message is
+/// sent by another member, who picks its name and content.
+const _openableExtensions = {
+  'pdf',
+  'txt',
+  'csv',
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'heic',
+  'mp3',
+  'm4a',
+  'aac',
+  'wav',
+  'ogg',
+  'mp4',
+  'mov',
+  'webm',
+};
+
+/// A file name safe to save locally: the last path segment of [name] with
+/// any character other than letters, digits, `.`, `_` and `-` replaced, so
+/// a sender can't make the download land outside the downloads folder.
+String safeDownloadName(String name) {
+  final base = name.split(RegExp(r'[/\\]')).last.trim();
+  final safe = base.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+  return safe.isEmpty || RegExp(r'^\.+$').hasMatch(safe) ? 'download' : safe;
+}
+
+/// Downloads a file message (with the auth headers when it is stored in this
+/// project's Storage), saves it and, for documents and media, opens it once
+/// the user confirms.
+Future<void> openFileMessage(
+  BuildContext context,
+  core.FileMessage message,
+) async {
   final response = await http.get(
     Uri.parse(message.source),
-    headers: SupabaseChatCore.instance.httpSupabaseHeaders,
+    headers: SupabaseChatCore.instance.httpSupabaseHeadersFor(message.source),
   );
   if (response.statusCode != 200) {
     throw SupabaseChatCoreStorageException(
       'Download failed (${response.statusCode})',
     );
   }
+  final name = safeDownloadName(message.name);
   final saved = await FileSaver.instance.saveFile(
-    name: message.name,
+    name: name,
     bytes: response.bodyBytes,
   );
-  if (!kIsWeb) await OpenFilex.open(saved);
+  if (kIsWeb || !context.mounted) return;
+  final extension = name.contains('.')
+      ? name.split('.').last.toLowerCase()
+      : '';
+  if (!_openableExtensions.contains(extension)) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Saved to $saved')));
+    return;
+  }
+  final open = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Open file?'),
+      content: Text('"$name" was saved to your device. Open it now?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Not now'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Open'),
+        ),
+      ],
+    ),
+  );
+  if (open ?? false) await OpenFilex.open(saved);
 }
 
 /// Reduces [samples] to [bars] values (max of each bucket), the resolution

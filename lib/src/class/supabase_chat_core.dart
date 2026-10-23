@@ -19,6 +19,7 @@ import 'room_channel.dart';
 import 'supabase_chat_core_config.dart';
 import 'supabase_chat_core_exception.dart';
 import 'upload_asset_result.dart';
+import 'user_channel.dart';
 import 'user_online_status.dart';
 
 /// Provides access to Supabase chat data.
@@ -177,6 +178,9 @@ class SupabaseChatCore {
       await channel.dispose();
     }
     _roomChannels.clear();
+    final userChannel = _userChannel;
+    _userChannel = null;
+    await userChannel?.dispose();
   }
 
   /// Reloads [loggedUser] from Supabase and returns it.
@@ -188,8 +192,12 @@ class SupabaseChatCore {
 
   void _startOwnPresence(String uid) {
     _presenceUserId = uid;
+    // Private: only the user themselves may publish on their own status
+    // channel (RLS policies on realtime.messages), so nobody can make
+    // someone else appear online, and the anon key can't watch anyone.
     final channel = _ownPresenceChannel = client.channel(
       '${config.realtimeOnlineUserPrefixChannel}$uid',
+      opts: const RealtimeChannelConfig(private: true),
     );
     channel.subscribe((status, error) async {
       // A late status of a channel already replaced must not change the
@@ -282,14 +290,21 @@ class SupabaseChatCore {
 
   final Map<String, RoomChannel> _roomChannels = {};
 
-  /// Shared private Broadcast channel of room [roomId] (message changes and
+  /// Shared private Broadcast channels of room [roomId] (message changes and
   /// typing indicator). One per room per [SupabaseChatCore], however many
   /// controllers are open on that room: Realtime only allows one join per
-  /// topic per connection.
+  /// topic per connection. They are closed as soon as the logged-in user is
+  /// removed from the room (see [RoomChannel.revoke]).
   @internal
   RoomChannel roomChannel(String roomId) =>
       _roomChannels.putIfAbsent(roomId, () {
         late final RoomChannel created;
+        void onRoomChange(String changedRoomId, bool removed) {
+          if (removed && changedRoomId == roomId) unawaited(created.revoke());
+        }
+
+        final userChannel = _userChannelOrNull();
+        userChannel?.addListener(onRoomChange);
         return created = RoomChannel(
           client: client,
           topic: '${config.realtimeRoomChannelPrefix}$roomId',
@@ -297,9 +312,33 @@ class SupabaseChatCore {
           // channel of the same room may already be registered.
           onEmpty: () {
             if (_roomChannels[roomId] == created) _roomChannels.remove(roomId);
+            if (userChannel != null) {
+              unawaited(userChannel.removeListener(onRoomChange));
+            }
           },
         );
       });
+
+  UserChannel? _userChannel;
+
+  /// The logged-in user's shared private channel of room changes, or `null`
+  /// when signed out.
+  UserChannel? _userChannelOrNull() {
+    final uid = loggedUserId;
+    if (uid == null) return null;
+    final existing = _userChannel;
+    if (existing != null) return existing;
+    late final UserChannel created;
+    return _userChannel = created = UserChannel(
+      client: client,
+      topic: '${config.realtimeUserChannelPrefix}$uid',
+      // Only unregister itself: once [closeSession] disposed it, a new
+      // channel may already be registered.
+      onEmpty: () {
+        if (_userChannel == created) _userChannel = null;
+      },
+    );
+  }
 
   // ---------------------------------------------------------------------------
   // Storage
@@ -371,11 +410,49 @@ class SupabaseChatCore {
     });
   }
 
-  /// Headers authenticating HTTP requests to Supabase (e.g. to load
-  /// attachments from [getAssetUrl] URLs with `Image.network` or `http`).
-  Map<String, String> get httpSupabaseHeaders => {
-    'Authorization': 'Bearer ${client.auth.currentSession?.accessToken}',
-  };
+  /// Headers authenticating HTTP requests to Supabase.
+  ///
+  /// The access token is sent whatever the URL: never attach these headers
+  /// to a URL read from chat data (avatars, room images, message sources),
+  /// which any user can point at their own server. Use
+  /// [httpSupabaseHeadersFor] instead.
+  @Deprecated(
+    'Leaks the access token to any URL it is attached to: use '
+    'httpSupabaseHeadersFor(url)',
+  )
+  Map<String, String> get httpSupabaseHeaders {
+    final token = client.auth.currentSession?.accessToken;
+    return token == null ? const {} : {'Authorization': 'Bearer $token'};
+  }
+
+  /// Headers authenticating a request to [url] (e.g. to load an attachment
+  /// with `Image.network(url, headers: ...)` or `http.get`): the access
+  /// token, only when [url] is an authenticated object URL of this project's
+  /// Storage (see [getAssetUrl]); no headers for any other URL, or when
+  /// signed out.
+  ///
+  /// Avatars, room images and message sources are written by users: an
+  /// unconditional `Authorization` header would hand the viewer's session to
+  /// whatever server such a URL points at.
+  Map<String, String> httpSupabaseHeadersFor(String url) {
+    final token = client.auth.currentSession?.accessToken;
+    if (token == null || !isStorageObjectUrl(url)) return const {};
+    return {'Authorization': 'Bearer $token'};
+  }
+
+  /// Whether [url] is an authenticated object URL of this project's Storage
+  /// (same scheme, host, port and `/object/authenticated/` path prefix as
+  /// [getAssetUrl]).
+  bool isStorageObjectUrl(String url) {
+    final target = Uri.tryParse(url);
+    final storage = Uri.tryParse('${client.storage.url}/object/authenticated/');
+    if (target == null || storage == null || !target.hasScheme) return false;
+    return target.scheme == storage.scheme &&
+        target.host == storage.host &&
+        target.port == storage.port &&
+        target.path.startsWith(storage.path) &&
+        !target.pathSegments.contains('..');
+  }
 
   // ---------------------------------------------------------------------------
   // Errors
@@ -708,70 +785,28 @@ class SupabaseChatCore {
       }
     });
 
-    controller = _sessionStream<ChatRoom>(() {
-      final channel = client
-          .channel(_uniqueTopic('${config.schema}:room:$roomId'))
-          .onPostgresChanges(
-            event: PostgresChangeEvent.update,
-            schema: config.schema,
-            table: config.roomsTableName,
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'id',
-              value: roomId,
-            ),
-            callback: (_) => refresh(),
-          )
-          .onPostgresChanges(
-            event: PostgresChangeEvent.insert,
-            schema: config.schema,
-            table: config.roomMembersTableName,
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'roomId',
-              value: roomId,
-            ),
-            callback: (_) => refresh(),
-          )
-          .onPostgresChanges(
-            event: PostgresChangeEvent.update,
-            schema: config.schema,
-            table: config.roomMembersTableName,
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'roomId',
-              value: roomId,
-            ),
-            callback: (_) => refresh(),
-          )
-          // DELETE events can't be filtered (Realtime only ships the old
-          // row's primary key for them): refetch on any, cheap enough.
-          .onPostgresChanges(
-            event: PostgresChangeEvent.delete,
-            schema: config.schema,
-            table: config.roomMembersTableName,
-            callback: (payload) {
-              final old = payload.oldRecord;
-              if (old['roomId'] == null || old['roomId'] == roomId) {
-                refresh();
-              }
-            },
-          )
-          .onPostgresChanges(
-            event: PostgresChangeEvent.delete,
-            schema: config.schema,
-            table: config.roomsTableName,
-            callback: (payload) {
-              if (payload.oldRecord['id'] == roomId) refresh();
-            },
-          )
-          .subscribe(
-            (status, error) => _reportSubscribeError(controller, status, error),
-          );
-      refresh();
-      return channel;
-    });
+    controller = _sessionStream<ChatRoom>(
+      () => _listenRoomChanges(controller, (changedRoomId, removed) {
+        if (changedRoomId == roomId) refresh();
+      }, onListening: refresh),
+    );
     return controller.stream;
+  }
+
+  /// Registers [listener] on the logged-in user's channel of room changes
+  /// (failures reported on [controller]) and returns its remover.
+  Future<void> Function() _listenRoomChanges(
+    StreamController<Object> controller,
+    RoomChangeListener listener, {
+    void Function()? onListening,
+  }) {
+    final channel = _userChannelOrNull();
+    if (channel == null) return () async {};
+    void onError(RealtimeSubscribeStatus status, Object? error) =>
+        _reportSubscribeError(controller, status, error);
+    channel.addListener(listener, onError: onError);
+    onListening?.call();
+    return () => channel.removeListener(listener, onError: onError);
   }
 
   /// Returns a page of the rooms the logged-in user is a member of: the ones
@@ -840,73 +875,34 @@ class SupabaseChatCore {
     });
 
     controller = _sessionStream<ChatRoomChange>(
-      () => client
-          .channel(_uniqueTopic('${config.schema}:rooms:$uid'))
-          .onPostgresChanges(
-            event: PostgresChangeEvent.update,
-            schema: config.schema,
-            table: config.roomsTableName,
-            callback: (payload) => upsert(payload.newRecord['id'].toString()),
-          )
-          .onPostgresChanges(
-            event: PostgresChangeEvent.delete,
-            schema: config.schema,
-            table: config.roomsTableName,
-            callback: (payload) {
-              final id = payload.oldRecord['id'];
-              if (id != null) remove(id.toString());
-            },
-          )
-          .onPostgresChanges(
-            event: PostgresChangeEvent.insert,
-            schema: config.schema,
-            table: config.roomMembersTableName,
-            filter: PostgresChangeFilter(
-              type: PostgresChangeFilterType.eq,
-              column: 'userId',
-              value: uid,
-            ),
-            callback: (payload) =>
-                upsert(payload.newRecord['roomId'].toString()),
-          )
-          // Unfilterable (see [room]): the old row only carries the
-          // primary key, which does include roomId/userId here.
-          .onPostgresChanges(
-            event: PostgresChangeEvent.delete,
-            schema: config.schema,
-            table: config.roomMembersTableName,
-            callback: (payload) {
-              final old = payload.oldRecord;
-              if (old['roomId'] == null) return;
-              if (old['userId'] == uid) {
-                remove(old['roomId'].toString());
-              } else {
-                upsert(old['roomId'].toString());
-              }
-            },
-          )
-          .subscribe(
-            (status, error) => _reportSubscribeError(controller, status, error),
-          ),
+      () => _listenRoomChanges(controller, (roomId, removed) {
+        if (removed) {
+          remove(roomId);
+        } else {
+          upsert(roomId);
+        }
+      }),
     );
     return controller.stream;
   }
 
-  /// A stream controller whose Realtime channel, opened by [subscribe] when
-  /// the stream is listened to, is removed when the listener cancels or
-  /// when the session closes ([closeSession], sign out, user switch): the
-  /// stream then completes, so a listener never keeps receiving the data of
-  /// a user that is no longer signed in.
-  StreamController<T> _sessionStream<T>(RealtimeChannel Function() subscribe) {
+  /// A stream controller whose Realtime subscription, opened by [subscribe]
+  /// when the stream is listened to (it returns its closer), is closed when
+  /// the listener cancels or when the session closes ([closeSession], sign
+  /// out, user switch): the stream then completes, so a listener never keeps
+  /// receiving the data of a user that is no longer signed in.
+  StreamController<T> _sessionStream<T>(
+    Future<void> Function() Function() subscribe,
+  ) {
     late final StreamController<T> controller;
-    RealtimeChannel? channel;
+    Future<void> Function()? unsubscribe;
     late final Future<void> Function() closeForSession;
 
     Future<void> release() async {
       _sessionClosers.remove(closeForSession);
-      final c = channel;
-      channel = null;
-      if (c != null) await client.removeChannel(c);
+      final close = unsubscribe;
+      unsubscribe = null;
+      if (close != null) await close();
     }
 
     closeForSession = () async {
@@ -918,7 +914,7 @@ class SupabaseChatCore {
 
     controller = StreamController<T>(
       onListen: () {
-        channel = subscribe();
+        unsubscribe = subscribe();
         _sessionClosers.add(closeForSession);
       },
       onCancel: release,
@@ -986,13 +982,6 @@ class SupabaseChatCore {
       );
     }
   }
-
-  static int _topicCounter = 0;
-
-  /// Postgres changes channels can be named freely: a per-subscription
-  /// unique topic lets several listeners of the same data coexist on one
-  /// Realtime connection (which allows a single join per topic).
-  static String _uniqueTopic(String base) => '$base:${++_topicCounter}';
 
   // ---------------------------------------------------------------------------
   // Users
@@ -1161,18 +1150,21 @@ class SupabaseChatCore {
   /// Sends [message] to room [roomId]. Build [message] with one of
   /// `flutter_chat_core`'s `Message` factories (`Message.text`,
   /// `Message.image`, ...) and your own `id` (e.g. `const Uuid().v7()`).
-  /// `authorId` is always set to the logged-in user, and `createdAt`
-  /// defaults to now. Stores [message]'s `id` as-is, so a caller doing
-  /// optimistic UI (see `SupabaseChatController.sendMessage`) gets the exact
-  /// same row back from Realtime instead of a second, differently-id'd one.
+  /// `authorId` is always set to the logged-in user, and `createdAt` is
+  /// assigned by the database ([message]'s own is ignored: a device clock
+  /// can't decide where a message lands in everyone's timeline). Stores
+  /// [message]'s `id` as-is, so a caller doing optimistic UI (see
+  /// `SupabaseChatController.sendMessage`) gets the exact same row back from
+  /// Realtime instead of a second, differently-id'd one. Ids are unique: an
+  /// id already used by another message is rejected.
   Future<void> sendMessage(core.Message message, String roomId) async {
     final uid = _requireUserId('sendMessage');
     return _guard('sendMessage', () async {
       final row = messageToRow(message)
+        ..remove('createdAt')
         ..['id'] = message.id
         ..['roomId'] = roomId
-        ..['authorId'] = uid
-        ..['createdAt'] = formatChatDate(message.createdAt ?? DateTime.now());
+        ..['authorId'] = uid;
       await client
           .schema(config.schema)
           .from(config.messagesTableName)
@@ -1184,12 +1176,14 @@ class SupabaseChatCore {
   /// new messages of the logged-in user (who must be a member of both).
   ///
   /// Each copy keeps the content and the metadata, without the reply,
-  /// reactions, pin and edited mark, and stores its [ChatForwardOrigin]:
-  /// the original author and date, kept from the first forward when a
-  /// forwarded message is forwarded again. Attachments stored in the chat
-  /// assets bucket are copied into [toRoomId]'s folder: the members of the
-  /// destination can't read the files of a room they aren't in. Messages
-  /// that can't be persisted (see [messageToRow]) are skipped.
+  /// reactions, pin and edited mark, and gets its [ChatForwardOrigin]: the
+  /// original author and date, kept from the first forward when a forwarded
+  /// message is forwarded again. The origin is attested by the database from
+  /// the source message (the client only names it), so it can't be forged.
+  /// Attachments stored in the chat assets bucket are copied into
+  /// [toRoomId]'s folder: the members of the destination can't read the
+  /// files of a room they aren't in. Messages that can't be persisted (see
+  /// [messageToRow]) are skipped.
   Future<void> forwardMessages(
     ChatRoom from,
     List<core.Message> messages,
@@ -1209,21 +1203,20 @@ class SupabaseChatCore {
         );
     if (sorted.isEmpty) return;
     return _guard('forwardMessages', () async {
-      final now = DateTime.now().toUtc();
       final rows = <Map<String, dynamic>>[];
-      for (final (index, message) in sorted.indexed) {
-        final origin =
-            ChatForwardOrigin.of(message) ??
-            ChatForwardOrigin(
-              authorId: message.authorId,
-              authorName: from.member(message.authorId)?.fullName,
-              createdAt: message.createdAt,
-            );
+      for (final message in sorted) {
         final metadata = {
           ...?message.metadata,
-          ChatForwardOrigin.metadataKey: origin.toJson(),
+          ChatForwardOrigin.metadataKey: ChatForwardOrigin.claim(
+            sourceRoomId: from.id,
+            sourceMessageId: message.id,
+          ),
         }..remove('edited');
+        // No createdAt: the database assigns it (clock_timestamp(), so the
+        // copies of one insert keep their order).
         final row = messageToRow(message)
+          ..remove('createdAt')
+          ..remove('updatedAt')
           ..remove('status')
           ..remove('reactions')
           ..remove('pinned')
@@ -1231,10 +1224,6 @@ class SupabaseChatCore {
           ..['id'] = const Uuid().v7()
           ..['roomId'] = toRoomId
           ..['authorId'] = uid
-          // Spaced by a millisecond: the copies keep their order.
-          ..['createdAt'] = formatChatDate(
-            now.add(Duration(milliseconds: index)),
-          )
           ..['metadata'] = metadata;
         final source = row['source'];
         if (source is String) {
@@ -1267,14 +1256,20 @@ class SupabaseChatCore {
   /// Updates [message]'s content and metadata in room [roomId]. Only the
   /// author can update a message. Status, reactions and the pinned flag are
   /// left alone: see [markRoomAsRead], [toggleReaction] and
-  /// [setMessagePinned].
+  /// [setMessagePinned]. The database keeps the message's id, room, author,
+  /// date and forward origin, and sets `updatedAt` itself when the content
+  /// changes.
   Future<void> updateMessage(core.Message message, String roomId) =>
       _guard('updateMessage', () async {
         final row = messageToRow(message)
+          ..remove('id')
+          ..remove('roomId')
+          ..remove('authorId')
+          ..remove('createdAt')
+          ..remove('updatedAt')
           ..remove('status')
           ..remove('reactions')
-          ..remove('pinned')
-          ..['updatedAt'] = formatChatDate(DateTime.now());
+          ..remove('pinned');
         await client
             .schema(config.schema)
             .from(config.messagesTableName)
