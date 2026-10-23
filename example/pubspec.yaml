@@ -8,7 +8,7 @@ publish_to: 'none'
 version: 2.0.0
 
 environment:
-  sdk: '>=3.9.0 <4.0.0'
+  sdk: '>=3.11.0 <4.0.0'
 
 dependencies:
   audioplayers: ^6.8.1

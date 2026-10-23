@@ -32,8 +32,10 @@ jobs:
           channel: stable
           cache: true
 
+      # The example app may need a newer SDK than the package minimum: on the
+      # minimum version only the package itself is resolved and analyzed.
       - name: Install dependencies
-        run: flutter pub get
+        run: flutter pub get ${{ matrix.flutter != 'stable' && '--no-example' || '' }}
 
       # Formatting output can differ between Dart versions: checked on the
       # latest stable only.
@@ -42,7 +44,7 @@ jobs:
         run: dart format . --set-exit-if-changed
 
       - name: Analyze
-        run: flutter analyze --no-pub
+        run: flutter analyze --no-pub ${{ matrix.flutter != 'stable' && 'lib test' || '' }}
 
       # The integration tests (tag `integration`) need the Supabase stack:
       # see the integration job.
