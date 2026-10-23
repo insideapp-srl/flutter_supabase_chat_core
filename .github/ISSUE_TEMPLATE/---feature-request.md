@@ -1,6 +1,6 @@
 ---
 name: "⚡️ Feature request"
-about: Suggest an idea to help make Flyer Chat even better!
+about: Suggest an idea to help make Flutter Supabase Chat Core even better!
 title: ''
 labels: feature
 assignees: ''
