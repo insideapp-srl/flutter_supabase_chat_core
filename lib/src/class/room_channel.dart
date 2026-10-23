@@ -16,21 +16,24 @@ typedef MessageChangeListener =
       Map<String, dynamic> oldRecord,
     );
 
-/// A room's private Supabase Realtime **Broadcast** channel
-/// (`<prefix><roomId>`), shared by every controller open on that room
-/// (Realtime only allows one join per topic per connection). It carries:
+/// A room's private Supabase Realtime **Broadcast** channels, shared by every
+/// controller open on that room (Realtime only allows one join per topic per
+/// connection):
 ///
-///  - **message changes**, sent by the database itself (the
-///    `chats.broadcast_message_change` trigger calls
+///  - `<prefix><roomId>`: **message changes**, sent by the database itself
+///    (the `chats.broadcast_message_change` trigger calls
 ///    `realtime.broadcast_changes`). Postgres Changes can't be used for
 ///    messages: `chats.messages` is partitioned, and Postgres Changes
 ///    reports rows under their physical partition, never matching a
-///    subscription on the parent table;
-///  - the **typing indicator**, sent by clients.
+///    subscription on the parent table. Clients can't send on it, so every
+///    event on it comes from the database;
+///  - `<prefix><roomId>:typing`: the **typing indicator**, sent by clients.
 ///
-/// The channel is private: Realtime authorizes joining (reading) and
+/// Both channels are private: Realtime authorizes joining (reading) and
 /// sending against RLS policies on `realtime.messages`, which only let room
-/// members in (see 03_database_policy.sql).
+/// members in, and only let them send on the typing channel (see
+/// 03_database_policy.sql). A typing event's `uid` is still chosen by the
+/// sending member: treat it as display data only.
 ///
 /// ## Typing indicator (issue #38)
 ///
@@ -65,42 +68,71 @@ class RoomChannel {
       topic,
       opts: const RealtimeChannelConfig(private: true),
     );
-    _channel.onBroadcast(event: typingEvent, callback: _onTyping);
     for (final operation in const ['INSERT', 'UPDATE', 'DELETE']) {
       _channel.onBroadcast(
         event: operation,
         callback: (message) => _onMessageChange(operation, message),
       );
     }
-    _channel.subscribe((status, error) {
-      // Statuses arriving after the release (e.g. the session was closed
-      // while Realtime was re-authorizing the channel) concern nobody.
-      if (_disposed) return;
-      _subscribed = status == RealtimeSubscribeStatus.subscribed;
-      if (status == RealtimeSubscribeStatus.channelError &&
-          '$error'.contains('Unauthorized')) {
-        // Not (or no longer) a member: retrying can't succeed, and the
-        // client would otherwise keep rejoining with backoff for as long as
-        // the connection lives, piling up subscription errors server side.
-        _unauthorized = true;
-        unawaited(client.removeChannel(_channel));
-      }
-      if (status == RealtimeSubscribeStatus.channelError ||
-          status == RealtimeSubscribeStatus.timedOut) {
-        for (final listener in _errorListeners.toList()) {
-          listener(error ?? 'Realtime channel $topic: ${status.name}');
-        }
-      }
-    });
+    _channel.subscribe(
+      (status, error) => _onStatus(_channel, status, error, (subscribed) {}),
+    );
+    _typingChannel = client.channel(
+      '$topic$typingTopicSuffix',
+      opts: const RealtimeChannelConfig(private: true),
+    );
+    _typingChannel.onBroadcast(event: typingEvent, callback: _onTyping);
+    _typingChannel.subscribe(
+      (status, error) => _onStatus(
+        _typingChannel,
+        status,
+        error,
+        (subscribed) => _subscribed = subscribed,
+      ),
+    );
   }
 
   /// Broadcast event name of typing updates.
   static const typingEvent = 'typing';
 
+  /// Suffix of the typing channel topic, appended to [topic].
+  static const typingTopicSuffix = ':typing';
+
+  void _onStatus(
+    RealtimeChannel channel,
+    RealtimeSubscribeStatus status,
+    Object? error,
+    void Function(bool subscribed) setSubscribed,
+  ) {
+    // Statuses arriving after the release (e.g. the session was closed
+    // while Realtime was re-authorizing the channel) concern nobody.
+    if (_disposed) return;
+    setSubscribed(status == RealtimeSubscribeStatus.subscribed);
+    if (status == RealtimeSubscribeStatus.channelError &&
+        '$error'.contains('Unauthorized')) {
+      // Not (or no longer) a member: retrying can't succeed, and the client
+      // would otherwise keep rejoining with backoff for as long as the
+      // connection lives, piling up subscription errors server side.
+      _unauthorized = true;
+      unawaited(client.removeChannel(channel));
+    }
+    if (status == RealtimeSubscribeStatus.channelError ||
+        status == RealtimeSubscribeStatus.timedOut) {
+      _notifyError(error ?? 'Realtime channel $topic: ${status.name}');
+    }
+  }
+
+  void _notifyError(Object error) {
+    for (final listener in _errorListeners.toList()) {
+      listener(error);
+    }
+  }
+
   /// Client the channel lives on.
   final SupabaseClient client;
 
-  /// Channel topic (`<prefix><roomId>`).
+  /// Message channel topic (`<prefix><roomId>`); the typing channel is
+  /// [topic] + [typingTopicSuffix].
   final String topic;
 
   /// Called once the last listener is removed, right before the channel is
@@ -117,6 +149,7 @@ class RoomChannel {
   final Duration expiryTimeout;
 
   late final RealtimeChannel _channel;
+  late final RealtimeChannel _typingChannel;
   bool _subscribed = false;
   bool _disposed = false;
   bool _unauthorized = false;
@@ -129,12 +162,26 @@ class RoomChannel {
   String? _typingAs;
   Timer? _idleTimer;
 
-  /// Whether the channel is currently joined.
+  /// Whether the typing channel is currently joined.
   bool get isSubscribed => _subscribed;
 
-  /// Whether Realtime refused the channel (the user isn't a member of the
-  /// room). The channel is released and won't be retried.
+  /// Whether Realtime refused the channel, or the user was removed from the
+  /// room (see [revoke]). The channels are released and won't be retried.
   bool get isUnauthorized => _unauthorized;
+
+  /// Leaves both channels because the logged-in user is no longer a member
+  /// of the room (announced on their user channel), reporting it to the
+  /// error listeners. Realtime only authorizes a private channel when it is
+  /// joined: without this, an open channel would keep receiving the room's
+  /// messages until the next re-authorization.
+  Future<void> revoke() async {
+    if (_disposed || _unauthorized) return;
+    _unauthorized = true;
+    _subscribed = false;
+    _notifyError('Removed from the room: channel $topic closed');
+    await client.removeChannel(_channel);
+    await client.removeChannel(_typingChannel);
+  }
 
   /// Ids of the remote users currently typing.
   Set<String> get typingUserIds => Set.unmodifiable(_typing.keys);
@@ -179,13 +226,14 @@ class RoomChannel {
   Future<void> _sendTyping(String uid, bool typing) async {
     if (!_subscribed || _disposed) return;
     try {
-      await _channel.sendBroadcastMessage(
+      await _typingChannel.sendBroadcastMessage(
         event: typingEvent,
         payload: {'uid': uid, 'typing': typing},
       );
-    } on Object {
+    } on Object catch (_) {
       // Typing indicators are best effort: a dropped event is corrected by
       // the next one, or by the receivers' expiry timer.
+      return;
     }
   }
 
@@ -271,6 +319,9 @@ class RoomChannel {
     _typingListeners.clear();
     _messageListeners.clear();
     _errorListeners.clear();
-    if (!_unauthorized) await client.removeChannel(_channel);
+    if (!_unauthorized) {
+      await client.removeChannel(_channel);
+      await client.removeChannel(_typingChannel);
+    }
   }
 }

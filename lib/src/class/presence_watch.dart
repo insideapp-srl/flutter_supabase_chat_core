@@ -17,9 +17,13 @@ class PresenceWatch {
     required this.uid,
     required this.onEmpty,
   }) {
-    _channel = client.channel(topic)
-      ..onPresenceSync((_) => _sync())
-      ..subscribe();
+    // Private: watching requires a signed-in user, and only [uid] may
+    // publish on the topic (RLS policies on realtime.messages), so any
+    // presence on it is [uid]'s own.
+    _channel =
+        client.channel(topic, opts: const RealtimeChannelConfig(private: true))
+          ..onPresenceSync((_) => _sync())
+          ..subscribe();
   }
 
   /// Client the channel lives on.
@@ -42,7 +46,7 @@ class PresenceWatch {
 
   void _sync() {
     final online = _channel.presenceState().any(
-      (state) => state.presences.any((p) => p.payload['uid'] == uid),
+      (state) => state.presences.isNotEmpty,
     );
     final status = online ? UserOnlineStatus.online : UserOnlineStatus.offline;
     if (status == _status) return;

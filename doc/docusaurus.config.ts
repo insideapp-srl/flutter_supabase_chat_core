@@ -7,16 +7,11 @@ const config: Config = {
     tagline: 'Real-time chat for Flutter on Supabase',
     favicon: 'img/favicon.ico',
 
-    // Set the production url of your site here
     url: 'https://flutter-supabase-chat-core.insideapp.it',
-    // Set the /<baseUrl>/ pathname under which your site is served
-    // For GitHub pages deployment, it is often '/<projectName>/'
     baseUrl: '/',
 
-    // GitHub pages deployment config.
-    // If you aren't using GitHub pages, you don't need these.
-    organizationName: 'insideapp-srl', // Usually your GitHub org/user name.
-    projectName: 'flutter_supabase_chat_core', // Usually your repo name.
+    organizationName: 'insideapp-srl',
+    projectName: 'flutter_supabase_chat_core',
 
     onBrokenLinks: 'throw',
     onBrokenMarkdownLinks: 'warn',
@@ -32,9 +27,6 @@ const config: Config = {
         },
     ],
 
-    // Even if you don't use internationalization, you can use this field to set
-    // useful metadata like html lang. For example, if your site is Chinese, you
-    // may want to replace "en" with "zh-Hans".
     i18n: {
         defaultLocale: 'en',
         locales: ['en'],
@@ -76,9 +68,9 @@ const config: Config = {
             items: [
                 {
                     type: 'docSidebar',
-                    sidebarId: 'tutorialSidebar',
+                    sidebarId: 'docsSidebar',
                     position: 'left',
-                    label: 'Tutorial',
+                    label: 'Docs',
                 },
                 {to: 'https://flyer.chat/docs/flutter/introduction/', label: 'Chat UI', position: 'left'},
                 {
@@ -95,7 +87,7 @@ const config: Config = {
                     title: 'Docs',
                     items: [
                         {
-                            label: 'How use',
+                            label: 'Getting started',
                             to: '/',
                         },
                     ],
@@ -104,7 +96,7 @@ const config: Config = {
                     title: 'Community',
                     items: [
                         {
-                            label: 'Site',
+                            label: 'InsideApp',
                             href: 'https://www.insideapp.it/',
                         },
                         {
@@ -114,7 +106,7 @@ const config: Config = {
                     ],
                 },
             ],
-            copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+            copyright: `Copyright © ${new Date().getFullYear()} InsideApp S.r.l. Built with Docusaurus.`,
         },
         prism: {
             theme: prismThemes.github,

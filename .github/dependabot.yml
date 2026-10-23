@@ -1,0 +1,31 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ['*']
+
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: pub
+    directory: /example
+    schedule:
+      interval: weekly
+    groups:
+      example:
+        patterns: ['*']
+
+  # The documentation site (Docusaurus): build-time only.
+  - package-ecosystem: npm
+    directory: /doc
+    schedule:
+      interval: weekly
+    groups:
+      docusaurus:
+        patterns: ['*']

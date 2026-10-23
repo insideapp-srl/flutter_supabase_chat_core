@@ -209,7 +209,6 @@ BEGIN
         ALTER TABLE chats.rooms OWNER TO postgres;
         ALTER TABLE ONLY chats.rooms ADD CONSTRAINT rooms_pkey PRIMARY KEY (id);
         ALTER TABLE chats.rooms ENABLE ROW LEVEL SECURITY;
-        ALTER PUBLICATION supabase_realtime ADD TABLE ONLY chats.rooms;
 
     ELSIF v_is_v1 THEN
         RAISE NOTICE 'v1 schema detected (chats.rooms.id is bigint): migrating users and rooms to v2 shape';
@@ -313,7 +312,6 @@ BEGIN
         ) THEN
             EXECUTE format('ALTER PUBLICATION supabase_realtime DROP TABLE chats.%I', v_rooms_backup);
         END IF;
-        ALTER PUBLICATION supabase_realtime ADD TABLE ONLY chats.rooms;
 
         RAISE NOTICE 'chats.% kept as a backup — verify row counts match, then drop it yourself once satisfied.', v_rooms_backup;
     ELSE
@@ -343,7 +341,6 @@ BEGIN
         );
         ALTER TABLE chats.room_members OWNER TO postgres;
         ALTER TABLE chats.room_members ENABLE ROW LEVEL SECURITY;
-        ALTER PUBLICATION supabase_realtime ADD TABLE ONLY chats.room_members;
 
         IF v_is_v1 THEN
             RAISE NOTICE 'Populating chats.room_members from chats.%''s userIds/userRoles', v_rooms_backup;
@@ -397,7 +394,7 @@ BEGIN
         -- replyToMessageId, ...).
         CREATE TABLE chats.messages (
             id uuid NOT NULL DEFAULT chats.uuid_generate_v7(),
-            "createdAt" timestamptz NOT NULL DEFAULT now(),
+            "createdAt" timestamptz NOT NULL DEFAULT clock_timestamp(),
             metadata jsonb,
             duration bigint,
             "mimeType" text,
@@ -706,22 +703,117 @@ BEGIN
 END
 $do$;
 
+-- Retry bookkeeping of the cleanup queue: cleanup-media retries a failing
+-- object a few times, then leaves it aside (with the last error) instead of
+-- letting it block every object queued after it.
+ALTER TABLE chats.media_pending_deletion ADD COLUMN IF NOT EXISTS attempts int NOT NULL DEFAULT 0;
+ALTER TABLE chats.media_pending_deletion ADD COLUMN IF NOT EXISTS "lastError" text;
+
+-- "createdAt" is the partition key and the time every member sees: the
+-- server assigns it (02_database_trigger.sql rejects client values far from
+-- it). clock_timestamp() rather than now(): the rows of a multi-row insert
+-- (e.g. forwarded messages) keep their order.
+ALTER TABLE chats.messages ALTER COLUMN "createdAt" SET DEFAULT clock_timestamp();
+
+-- Message ids are supplied by clients (optimistic UI), and the partitioned
+-- primary key is (id, "createdAt"), so it can't make id alone unique. This
+-- registry does: chats.claim_message_id() (02_database_trigger.sql) inserts
+-- every new id here, and a reused one fails with a unique violation. Without
+-- it, a member could create a second row with another message's id and get
+-- the RPCs/deletes that address messages by id to act on both.
+CREATE TABLE IF NOT EXISTS chats.message_ids (
+    id uuid PRIMARY KEY
+);
+ALTER TABLE chats.message_ids OWNER TO postgres;
+-- No policies: only the SECURITY DEFINER trigger functions touch it.
+ALTER TABLE chats.message_ids ENABLE ROW LEVEL SECURITY;
+INSERT INTO chats.message_ids (id)
+SELECT DISTINCT id FROM chats.messages
+ON CONFLICT (id) DO NOTHING;
+
 -- Weekly-partition maintenance (pre-creating upcoming partitions). Runs
 -- hourly via pg_cron; cheap/no-op when there's nothing due. No retention job
 -- is scheduled — see the note above about keeping chat history forever.
+--
+-- Two separate jobs on purpose: pg_cron runs a job's command as a single
+-- transaction block, where the COMMITs of partman.run_maintenance_proc()
+-- fail ("invalid transaction termination") as soon as anything else shares
+-- the command.
 DO $do$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'partman-run-maintenance') THEN
         PERFORM cron.schedule(
             'partman-run-maintenance',
             '0 * * * *',
-            $sql$CALL partman.run_maintenance_proc(); SELECT chats.ensure_messages_partitions_rls();$sql$
+            'CALL partman.run_maintenance_proc()'
         );
     ELSE
         PERFORM cron.alter_job(
             (SELECT jobid FROM cron.job WHERE jobname = 'partman-run-maintenance'),
-            command => 'CALL partman.run_maintenance_proc(); SELECT chats.ensure_messages_partitions_rls();'
+            command => 'CALL partman.run_maintenance_proc()'
         );
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'chats-messages-partitions-rls') THEN
+        PERFORM cron.schedule(
+            'chats-messages-partitions-rls',
+            '5 * * * *',
+            'SELECT chats.ensure_messages_partitions_rls()'
+        );
+    END IF;
+END
+$do$;
+
+-- Closes every new chats.messages partition the moment it is created
+-- (pg_partman maintenance, partition_data_proc(), or by hand), instead of
+-- leaving it open to the API roles until the next hourly job above.
+CREATE OR REPLACE FUNCTION chats.secure_new_messages_partitions()
+RETURNS event_trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+    -- chats.messages may not exist yet (e.g. mid-migration, while this file
+    -- recreates the tables).
+    IF to_regclass('chats.messages') IS NOT NULL AND EXISTS (
+        SELECT 1 FROM pg_event_trigger_ddl_commands() cmd
+        WHERE cmd.object_type = 'table' AND cmd.schema_name = 'chats'
+    ) THEN
+        PERFORM chats.ensure_messages_partitions_rls();
+    END IF;
+END;
+$$;
+
+-- Creating event triggers needs elevated privileges: allowed for postgres
+-- on Supabase, but not on every Postgres. Where it is refused, the hourly
+-- chats-messages-partitions-rls job above is the fallback.
+DO $do$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_event_trigger WHERE evtname = 'chats_secure_new_messages_partitions') THEN
+        CREATE EVENT TRIGGER chats_secure_new_messages_partitions
+            ON ddl_command_end
+            WHEN TAG IN ('CREATE TABLE', 'ALTER TABLE')
+            EXECUTE FUNCTION chats.secure_new_messages_partitions();
+    END IF;
+EXCEPTION WHEN insufficient_privilege THEN
+    RAISE WARNING 'chats: cannot create the event trigger securing new messages partitions (%); relying on the hourly chats-messages-partitions-rls job', SQLERRM;
+END
+$do$;
+
+-- Room and membership changes reach clients over private Broadcast
+-- channels (`chats:user:<uid>`, see chats.broadcast_room_change in
+-- 02_database_trigger.sql), not Postgres Changes: Realtime doesn't apply RLS
+-- to DELETE events, so publishing these tables told every subscriber which
+-- user left which room. Take them out of the publication on existing
+-- installs too.
+DO $do$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_publication_tables
+               WHERE pubname = 'supabase_realtime' AND schemaname = 'chats' AND tablename = 'rooms') THEN
+        ALTER PUBLICATION supabase_realtime DROP TABLE chats.rooms;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_publication_tables
+               WHERE pubname = 'supabase_realtime' AND schemaname = 'chats' AND tablename = 'room_members') THEN
+        ALTER PUBLICATION supabase_realtime DROP TABLE chats.room_members;
     END IF;
 END
 $do$;
@@ -773,8 +865,10 @@ $do$;
 
 -- chats.media_pending_deletion is an internal cleanup queue for the
 -- cleanup-media Edge Function (service_role only) — not part of the app's
--- data model, so undo the blanket anon/authenticated grant for it too.
+-- data model, so undo the blanket anon/authenticated grant for it too. Same
+-- for the message id registry, written by triggers only.
 REVOKE ALL ON TABLE chats.media_pending_deletion FROM anon, authenticated;
+REVOKE ALL ON TABLE chats.message_ids FROM anon, authenticated;
 
 -- The blanket grants above also reach the chats.messages partitions, which
 -- must only be accessed through the parent table: take them back.

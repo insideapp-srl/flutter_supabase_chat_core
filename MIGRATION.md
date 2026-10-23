@@ -19,7 +19,7 @@ reference while porting.
 
 ```yaml
 dependencies:
-  flutter_supabase_chat_core: ^2.0.0-rc.2
+  flutter_supabase_chat_core: ^2.0.0-rc.3
   flutter_chat_core: ^2.9.0        # replaces flutter_chat_types
   flutter_chat_ui: ^2.11.1         # if you use the UI (2.x API)
   flyer_chat_text_message: ^2.6.0  # one package per message type you render
@@ -28,7 +28,7 @@ dependencies:
   uuid: ^4.5.1
 ```
 
-Minimum SDKs are now `Dart >=3.8.0` and `Flutter >=3.32.0`.
+Minimum SDKs are now `Dart >=3.9.0` and `Flutter >=3.35.0`.
 
 `flutter_chat_ui` 2.12.0 moved its `Composer` to the experimental
 `material_ui` package, which crashes inside a standard `Scaffold` ("No
@@ -336,3 +336,31 @@ script moves them as well, delete them yourself if you don't need them.
 8. Catch `SupabaseChatCoreException` instead of Supabase exceptions.
 9. Migrate the database during a maintenance window, verify, then release.
 10. Move the 1.x attachments with `migrate_storage_uuids.sh`/`.ps1`.
+11. Load stored URLs with `httpSupabaseHeadersFor(url)` instead of
+    `httpSupabaseHeaders`, which sends the access token to any URL.
+
+## Upgrading from a 2.0.0 release candidate
+
+The security fixes after `2.0.0-rc.2` change the database and the Realtime
+protocol together: deploy the new SQL scripts and the new package version at
+the same time (re-running `example/utils/sql/01..05,99` is safe on an rc
+database, every change is idempotent).
+
+- Typing events moved to their own channel (`chats:room:<roomId>:typing`):
+  clients can no longer send on the message channel.
+- Room and membership changes travel on a private per-user channel
+  (`chats:user:<uid>`) instead of Postgres Changes; `chats.rooms` and
+  `chats.room_members` leave the `supabase_realtime` publication.
+- Online status channels are private: any signed-in user may watch them,
+  only their owner may publish.
+- The database assigns message times and rejects a client `createdAt` far
+  from its clock; message ids must be unique; status, reactions, pin and the
+  forward origin are database-owned.
+- Only the uploader may overwrite an attachment, only the uploader or a group
+  admin may delete it.
+- The `partman-run-maintenance` cron job now runs the procedure alone (the
+  combined command always failed), and a new `chats-messages-partitions-rls`
+  job secures new partitions.
+
+An rc client against the new database loses the typing indicator and the
+rooms list updates, and fails to send while its device clock is off.

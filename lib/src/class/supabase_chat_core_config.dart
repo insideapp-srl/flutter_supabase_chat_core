@@ -62,6 +62,7 @@ class SupabaseChatCoreConfig {
     String? usersViewName,
     this.realtimeOnlineUserPrefixChannel = 'online-user-',
     this.realtimeRoomChannelPrefix = 'chats:room:',
+    this.realtimeUserChannelPrefix = 'chats:user:',
     this.chatAssetsBucket = 'chats_assets',
     this.userAvatarsBucket = 'chats_user_avatar',
     this.defaultRoomMetadata,
@@ -98,16 +99,25 @@ class SupabaseChatCoreConfig {
   String get usersViewName => _usersViewName ?? usersTableName;
   final String? _usersViewName;
 
-  /// Prefix of the Presence channel used for a user's online status
-  /// (`<prefix><uid>`).
+  /// Prefix of the private Presence channel used for a user's online status
+  /// (`<prefix><uid>`). Any signed-in user may watch it, only `<uid>` may
+  /// publish on it (RLS policies on `realtime.messages`, which match the
+  /// default prefix).
   final String realtimeOnlineUserPrefixChannel;
 
-  /// Prefix of a room's private Realtime Broadcast channel
-  /// (`<prefix><roomId>`), carrying its message changes and typing
-  /// indicator. Must match the topic used by the
-  /// `chats.broadcast_message_change` trigger and the `realtime.messages`
-  /// RLS policies in the SQL scripts.
+  /// Prefix of a room's private Realtime Broadcast channels: `<prefix><roomId>`
+  /// carries its message changes (sent by the database only) and
+  /// `<prefix><roomId>:typing` its typing indicator (sent by members). Must
+  /// match the topics used by the `chats.broadcast_message_change` trigger and
+  /// the `realtime.messages` RLS policies in the SQL scripts.
   final String realtimeRoomChannelPrefix;
+
+  /// Prefix of a user's private Realtime Broadcast channel
+  /// (`<prefix><uid>`), on which the database announces changes to the
+  /// user's rooms and memberships. Must match the topic used by the
+  /// `chats.send_room_change` trigger function and the `realtime.messages`
+  /// RLS policies in the SQL scripts.
+  final String realtimeUserChannelPrefix;
 
   /// Storage bucket for message attachments (`<roomId>/<file>`).
   final String chatAssetsBucket;
@@ -143,6 +153,7 @@ class SupabaseChatCoreConfig {
     String? usersViewName,
     String? realtimeOnlineUserPrefixChannel,
     String? realtimeRoomChannelPrefix,
+    String? realtimeUserChannelPrefix,
     String? chatAssetsBucket,
     String? userAvatarsBucket,
     ChatMetadataProvider? defaultRoomMetadata,
@@ -162,6 +173,8 @@ class SupabaseChatCoreConfig {
         realtimeOnlineUserPrefixChannel ?? this.realtimeOnlineUserPrefixChannel,
     realtimeRoomChannelPrefix:
         realtimeRoomChannelPrefix ?? this.realtimeRoomChannelPrefix,
+    realtimeUserChannelPrefix:
+        realtimeUserChannelPrefix ?? this.realtimeUserChannelPrefix,
     chatAssetsBucket: chatAssetsBucket ?? this.chatAssetsBucket,
     userAvatarsBucket: userAvatarsBucket ?? this.userAvatarsBucket,
     defaultRoomMetadata: defaultRoomMetadata ?? this.defaultRoomMetadata,

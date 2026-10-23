@@ -215,7 +215,7 @@ class _RoomPageState extends State<RoomPage> {
           ),
         );
       case core.FileMessage():
-        await _guard(() => openFileMessage(message));
+        await _guard(() => openFileMessage(context, message));
       default:
         break;
     }
@@ -571,7 +571,6 @@ class _RoomPageState extends State<RoomPage> {
     final scheme = theme.colorScheme;
     final palette = ChatPalette.of(context);
     final chatTheme = AppTheme.chatTheme(theme);
-    final headers = _chat.httpSupabaseHeaders;
     TextStyle metaStyle(bool mine) => theme.textTheme.labelSmall!.copyWith(
       color: mine ? palette.sentMeta : palette.receivedMeta,
     );
@@ -777,7 +776,7 @@ class _RoomPageState extends State<RoomPage> {
                         child: FlyerChatImageMessage(
                           message: message,
                           index: index,
-                          headers: headers,
+                          headers: _chat.httpSupabaseHeadersFor(message.source),
                           showStatus: isSentByMe,
                           borderRadius: _bubbleRadius(isSentByMe, groupStatus),
                           timeBackground: Colors.black45,

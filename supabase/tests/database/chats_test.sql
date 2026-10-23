@@ -6,7 +6,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path = extensions, public;
 
-SELECT plan(67);
+SELECT plan(95);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures: four auth users (the chats.users rows come from the trigger).
@@ -225,6 +225,136 @@ SELECT is((SELECT count(*)::int FROM pg_inherits i
            WHERE i.inhparent = 'chats.messages'::regclass
              AND has_table_privilege('authenticated', i.inhrelid, 'SELECT')), 0,
           'messages partitions are not directly granted to API roles');
+
+-- ===========================================================================
+-- Regression tests of the security audit fixes
+-- ===========================================================================
+
+-- A partition created outside the install scripts is closed right away.
+CREATE TABLE chats.messages_ptest PARTITION OF chats.messages
+    FOR VALUES FROM ('2099-01-01') TO ('2099-01-08');
+SELECT is((SELECT relrowsecurity FROM pg_class WHERE oid = 'chats.messages_ptest'::regclass), true,
+          'a partition created by hand gets RLS immediately');
+SELECT is(has_table_privilege('anon', 'chats.messages_ptest', 'SELECT'), false,
+          'a partition created by hand is not granted to anon');
+SELECT is((SELECT command FROM cron.job WHERE jobname = 'partman-run-maintenance'), 'CALL partman.run_maintenance_proc()',
+          'the maintenance cron job runs the procedure alone (no shared transaction block)');
+SELECT is((SELECT count(*)::int FROM cron.job WHERE jobname = 'chats-messages-partitions-rls'), 1,
+          'the partitions RLS fix-up has its own cron job');
+
+-- Media cleanup queue: only the deleted message's own room attachments.
+SELECT pg_temp.login('fa000000-0000-0000-0000-000000000001');
+INSERT INTO chats.messages ("roomId", "authorId", type, source, name, size)
+SELECT (SELECT v FROM ids WHERE k = 'direct_ab'), auth.uid(), 'file', s, 'evil', 1
+FROM unnest(ARRAY[
+    'http://127.0.0.1:54321/storage/v1/object/authenticated/chats_assets/' || (SELECT v FROM ids WHERE k = 'group_abc') || '/other-room.pdf',
+    'http://127.0.0.1:54321/storage/v1/object/authenticated/chats_user_avatar/fb000000-0000-0000-0000-000000000002/avatar.png',
+    'x/object/authenticated/other_bucket/private/report.pdf',
+    'http://127.0.0.1:54321/storage/v1/object/authenticated/chats_assets/'
+]) AS s;
+DELETE FROM chats.messages WHERE name = 'evil';
+SELECT pg_temp.logout();
+SELECT is((SELECT count(*)::int FROM chats.media_pending_deletion
+           WHERE path LIKE '%other-room.pdf' OR "bucketId" <> 'chats_assets' OR path = ''), 0,
+          'a message source cannot queue another room''s, another bucket''s or a malformed object');
+
+-- Rooms and memberships: structural columns are not writable.
+SELECT pg_temp.login('fa000000-0000-0000-0000-000000000001');
+SELECT throws_ok(format($$UPDATE chats.rooms SET type = 'group' WHERE id = %L$$, (SELECT v FROM ids WHERE k = 'direct_ab')),
+                 '42501', NULL, 'a room''s type cannot be changed');
+SELECT throws_ok(format($$UPDATE chats.room_members SET "userId" = 'fc000000-0000-0000-0000-000000000003' WHERE "roomId" = %L AND "userId" = 'fb000000-0000-0000-0000-000000000002'$$,
+                        (SELECT v FROM ids WHERE k = 'direct_ab')),
+                 '42501', NULL, 'a membership cannot be moved to another user');
+SELECT throws_ok(format($$UPDATE chats.room_members SET "roomId" = %L WHERE "roomId" = %L AND "userId" = auth.uid()$$,
+                        (SELECT v FROM ids WHERE k = 'direct_ab'), (SELECT v FROM ids WHERE k = 'group_abc')),
+                 '42501', NULL, 'a membership cannot be moved to another room');
+UPDATE chats.room_members SET role = 'admin' WHERE "roomId" = (SELECT v FROM ids WHERE k = 'direct_ab') AND "userId" = auth.uid();
+SELECT pg_temp.logout();
+SELECT is((SELECT role FROM chats.room_members WHERE "roomId" = (SELECT v FROM ids WHERE k = 'direct_ab')
+           AND "userId" = 'fa000000-0000-0000-0000-000000000001'), NULL, 'direct room members cannot promote themselves');
+SELECT pg_temp.login('fb000000-0000-0000-0000-000000000002');
+SELECT throws_ok($$UPDATE chats.users SET role = 'admin' WHERE id = auth.uid()$$, '42501', NULL, 'users cannot set their own global role');
+
+-- Messages: unique ids, server-owned columns and time.
+SELECT pg_temp.login('fa000000-0000-0000-0000-000000000001');
+INSERT INTO chats.messages (id, "roomId", "authorId", type, text, pinned, reactions)
+VALUES ('f0000000-0000-0000-0000-000000000002', (SELECT v FROM ids WHERE k = 'group_abc'), auth.uid(), 'text', 'original', true, '{"x":["fb000000-0000-0000-0000-000000000002"]}');
+SELECT throws_ok(format($$INSERT INTO chats.messages (id, "roomId", "authorId", type, text, "createdAt")
+                         VALUES ('f0000000-0000-0000-0000-000000000002', %L, auth.uid(), 'text', 'decoy', now() - interval '5 minutes')$$,
+                        (SELECT v FROM ids WHERE k = 'direct_ab')),
+                 '23505', NULL, 'a message id cannot be reused');
+SELECT throws_ok(format($$INSERT INTO chats.messages ("roomId", "authorId", type, text, "createdAt")
+                         VALUES (%L, auth.uid(), 'text', 'future', now() + interval '6 weeks')$$,
+                        (SELECT v FROM ids WHERE k = 'group_abc')),
+                 '22008', NULL, 'a far-future createdAt is rejected');
+UPDATE chats.messages SET pinned = true, status = 'seen', reactions = '{"y":["fc000000-0000-0000-0000-000000000003"]}',
+                          "createdAt" = now() + interval '20 weeks', text = 'edited'
+WHERE id = 'f0000000-0000-0000-0000-000000000002';
+SELECT pg_temp.logout();
+SELECT is((SELECT row(pinned, status, reactions, text)::text FROM chats.messages WHERE id = 'f0000000-0000-0000-0000-000000000002'),
+          row(NULL::boolean, 'sent'::text, NULL::jsonb, 'edited'::text)::text,
+          'authors edit the content only: pin, status, reactions are server-owned');
+SELECT ok((SELECT "createdAt" < now() + interval '1 minute' AND "updatedAt" IS NOT NULL FROM chats.messages WHERE id = 'f0000000-0000-0000-0000-000000000002'),
+          'createdAt cannot be moved and edits always set updatedAt');
+
+-- Forward origin is attested by the database.
+SELECT pg_temp.login('fa000000-0000-0000-0000-000000000001');
+SELECT throws_ok(format($$INSERT INTO chats.messages ("roomId", "authorId", type, text, metadata)
+                         VALUES (%L, auth.uid(), 'text', 'fake', '{"forwardedFrom":{"authorId":"fb000000-0000-0000-0000-000000000002"}}')$$,
+                        (SELECT v FROM ids WHERE k = 'direct_ab')),
+                 '22023', NULL, 'a forward origin cannot be written by the client');
+INSERT INTO chats.messages ("roomId", "authorId", type, text, metadata)
+VALUES ((SELECT v FROM ids WHERE k = 'direct_ab'), auth.uid(), 'text', 'forwarded',
+        jsonb_build_object('forwardedFrom', jsonb_build_object('sourceRoomId', (SELECT v FROM ids WHERE k = 'group_abc'),
+                                                               'sourceMessageId', 'f0000000-0000-0000-0000-000000000002')));
+SELECT is((SELECT metadata -> 'forwardedFrom' ->> 'authorId' FROM chats.messages WHERE text = 'forwarded'),
+          'fa000000-0000-0000-0000-000000000001', 'a forward records the real author of its source');
+SELECT pg_temp.login('fd000000-0000-0000-0000-000000000004');
+INSERT INTO ids SELECT 'direct_ad', chats.create_room('direct', ARRAY['fa000000-0000-0000-0000-000000000001']::uuid[]);
+SELECT throws_ok(format($$INSERT INTO chats.messages ("roomId", "authorId", type, text, metadata)
+                         VALUES (%L, auth.uid(), 'text', 'stolen', %L)$$,
+                        (SELECT v FROM ids WHERE k = 'direct_ad'),
+                        jsonb_build_object('forwardedFrom', jsonb_build_object('sourceRoomId', (SELECT v FROM ids WHERE k = 'direct_ab'),
+                                                                               'sourceMessageId', 'f0000000-0000-0000-0000-000000000002'))),
+                 'P0002', NULL, 'only readable messages can be forwarded');
+SELECT pg_temp.logout();
+
+-- Storage: an attachment is overwritten by its uploader, deleted by its
+-- uploader or a group admin. Supabase blocks direct deletes from storage
+-- tables unless this is set (the Storage API sets it); RLS still applies.
+SELECT set_config('storage.allow_delete_query', 'true', true);
+INSERT INTO storage.objects (bucket_id, name, owner_id) VALUES
+    ('chats_assets', (SELECT v FROM ids WHERE k = 'group_abc') || '/carol.png', 'fc000000-0000-0000-0000-000000000003');
+SELECT pg_temp.login('fd000000-0000-0000-0000-000000000004');
+UPDATE storage.objects SET owner_id = auth.uid()::text WHERE name LIKE '%/carol.png';
+DELETE FROM storage.objects WHERE name LIKE '%/carol.png';
+SELECT pg_temp.logout();
+SELECT is((SELECT owner_id FROM storage.objects WHERE name LIKE '%/carol.png'), 'fc000000-0000-0000-0000-000000000003',
+          'members cannot overwrite or delete someone else''s attachment');
+SELECT pg_temp.login('fa000000-0000-0000-0000-000000000001');
+DELETE FROM storage.objects WHERE name LIKE '%/carol.png';
+SELECT pg_temp.logout();
+SELECT is((SELECT count(*)::int FROM storage.objects WHERE name LIKE '%/carol.png'), 0, 'group admins can delete attachments');
+
+-- Realtime: who may send where, and per-user room changes.
+SELECT pg_temp.login('fb000000-0000-0000-0000-000000000002');
+SELECT is(chats.is_chat_typing_topic('chats:room:' || (SELECT v FROM ids WHERE k = 'group_abc') || ':typing'), true,
+          'members may send on the typing channel');
+SELECT is(chats.is_chat_typing_topic('chats:room:' || (SELECT v FROM ids WHERE k = 'group_abc')), false,
+          'nobody may send on the message channel');
+SELECT is(chats.is_chat_member_topic('chats:room:' || (SELECT v FROM ids WHERE k = 'group_abc') || ':typing'), true,
+          'members may receive the typing channel');
+SELECT is(chats.is_own_user_topic('chats:user:fb000000-0000-0000-0000-000000000002'), true, 'users receive their own user channel');
+SELECT is(chats.is_own_user_topic('chats:user:fa000000-0000-0000-0000-000000000001'), false, 'users cannot receive someone else''s user channel');
+SELECT is(chats.is_presence_topic('online-user-fa000000-0000-0000-0000-000000000001'), true, 'signed-in users may watch online status');
+SELECT is(chats.is_own_presence_topic('online-user-fa000000-0000-0000-0000-000000000001'), false, 'users cannot publish someone else''s online status');
+SELECT pg_temp.logout();
+SELECT ok(EXISTS (SELECT 1 FROM realtime.messages WHERE topic = 'chats:user:fd000000-0000-0000-0000-000000000004'
+                  AND event = 'room_change' AND payload ->> 'roomId' = (SELECT v FROM ids WHERE k = 'direct_ad')::text),
+          'members are told about room changes on their own user channel');
+SELECT is((SELECT count(*)::int FROM pg_publication_tables WHERE pubname = 'supabase_realtime'
+           AND schemaname = 'chats' AND tablename IN ('rooms', 'room_members')), 0,
+          'rooms and memberships are not published to Postgres Changes');
 
 SELECT * FROM finish();
 ROLLBACK;

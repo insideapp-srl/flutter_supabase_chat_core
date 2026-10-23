@@ -37,7 +37,9 @@ BEGIN
             ),
             body := '{}'::jsonb
         )
-        WHERE EXISTS (SELECT 1 FROM chats.media_pending_deletion WHERE "processedAt" IS NULL);
+        -- Same rows cleanup-media picks up: rows left aside after too many
+        -- failed attempts (see "lastError") don't keep the job firing.
+        WHERE EXISTS (SELECT 1 FROM chats.media_pending_deletion WHERE "processedAt" IS NULL AND attempts < 5);
         $sql$
     );
 END

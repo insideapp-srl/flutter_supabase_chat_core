@@ -128,14 +128,14 @@ AS $$
     WHERE "roomId" = room_id AND "userId" = auth.uid();
 $$;
 
--- Storage helper: is the caller a member of the room whose id is the first
--- folder of a `chats_assets` object path (`<roomId>/<file>`)? Returns false
--- instead of raising for paths whose first folder isn't a uuid -- a bare
--- `::uuid` cast inside a storage policy could otherwise fail queries on
--- unrelated objects, since SQL doesn't guarantee the evaluation order of
--- the policy's AND-ed conditions.
-CREATE OR REPLACE FUNCTION chats.is_chat_member_path(object_name text)
-    RETURNS boolean
+-- Storage helper: the room a `chats_assets` object path (`<roomId>/<file>`)
+-- belongs to, from its first folder; NULL when it isn't a room folder.
+-- Never raises for a folder that isn't a uuid -- a bare `::uuid` cast inside
+-- a storage policy could otherwise fail queries on unrelated objects, since
+-- SQL doesn't guarantee the evaluation order of the policy's AND-ed
+-- conditions.
+CREATE OR REPLACE FUNCTION chats.room_id_from_path(object_name text)
+    RETURNS uuid
     LANGUAGE plpgsql
     STABLE
     SECURITY DEFINER
@@ -146,7 +146,7 @@ DECLARE
     mapped uuid;
 BEGIN
     IF folder ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
-        RETURN chats.is_chat_member(folder::uuid);
+        RETURN folder::uuid;
     END IF;
     -- Attachments uploaded before the v1 -> v2 migration live under the old
     -- bigint room id (`<old id>/<file>`): resolve it through the migration
@@ -154,19 +154,45 @@ BEGIN
     IF folder ~ '^[0-9]{1,18}$' AND to_regclass('chats.room_id_migration_map') IS NOT NULL THEN
         EXECUTE 'SELECT new_id FROM chats.room_id_migration_map WHERE old_id = $1'
             INTO mapped USING folder::bigint;
-        RETURN mapped IS NOT NULL AND chats.is_chat_member(mapped);
+        RETURN mapped;
     END IF;
-    RETURN false;
+    RETURN NULL;
 END;
 $$;
 
--- Realtime helper: is the caller a member of the room a private channel
--- topic (`chats:room:<roomId>`) belongs to? False for any other topic, and
--- for a malformed id (same safe-cast rationale as above).
-CREATE OR REPLACE FUNCTION chats.is_chat_member_topic(topic text)
+-- Storage helper: is the caller a member of the room of a `chats_assets`
+-- object path?
+CREATE OR REPLACE FUNCTION chats.is_chat_member_path(object_name text)
     RETURNS boolean
-    LANGUAGE plpgsql
+    LANGUAGE sql
     STABLE
+    SECURITY DEFINER
+    SET search_path = ''
+AS $$
+    SELECT coalesce(chats.is_chat_member(chats.room_id_from_path(object_name)), false);
+$$;
+
+-- Storage helper: is the caller an admin of the (group) room of a
+-- `chats_assets` object path? Mirrors who may delete someone else's message.
+CREATE OR REPLACE FUNCTION chats.is_chat_admin_path(object_name text)
+    RETURNS boolean
+    LANGUAGE sql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = ''
+AS $$
+    SELECT coalesce(chats.chat_member_role(chats.room_id_from_path(object_name)) = 'admin', false);
+$$;
+
+-- Realtime helper: the room a room channel topic belongs to --
+-- `chats:room:<roomId>` (message changes, sent by the database only) or
+-- `chats:room:<roomId>:typing` (typing indicator, sent by members) -- or
+-- NULL for any other topic or a malformed id (same safe-cast rationale as
+-- above).
+CREATE OR REPLACE FUNCTION chats.room_id_from_topic(topic text, typing boolean)
+    RETURNS uuid
+    LANGUAGE plpgsql
+    IMMUTABLE
     SECURITY INVOKER
     SET search_path = ''
 AS $$
@@ -174,14 +200,84 @@ DECLARE
     room text;
 BEGIN
     IF topic IS NULL OR left(topic, 11) <> 'chats:room:' THEN
-        RETURN false;
+        RETURN NULL;
     END IF;
     room := substr(topic, 12);
-    IF room !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
-        RETURN false;
+    IF typing THEN
+        IF right(room, 7) <> ':typing' THEN
+            RETURN NULL;
+        END IF;
+        room := left(room, -7);
     END IF;
-    RETURN chats.is_chat_member(room::uuid);
+    IF room !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+        RETURN NULL;
+    END IF;
+    RETURN room::uuid;
 END;
+$$;
+
+-- Realtime helper: may the caller receive on a room channel topic (message
+-- changes or typing indicator)? Members of the room only.
+CREATE OR REPLACE FUNCTION chats.is_chat_member_topic(topic text)
+    RETURNS boolean
+    LANGUAGE sql
+    STABLE
+    SECURITY INVOKER
+    SET search_path = ''
+AS $$
+    SELECT coalesce(chats.is_chat_member(
+        coalesce(chats.room_id_from_topic(topic, false), chats.room_id_from_topic(topic, true))
+    ), false);
+$$;
+
+-- Realtime helper: may the caller send on a topic? Only on the typing
+-- channel of a room they are a member of: the message channel carries
+-- database events only, so a member can't forge them.
+CREATE OR REPLACE FUNCTION chats.is_chat_typing_topic(topic text)
+    RETURNS boolean
+    LANGUAGE sql
+    STABLE
+    SECURITY INVOKER
+    SET search_path = ''
+AS $$
+    SELECT coalesce(chats.is_chat_member(chats.room_id_from_topic(topic, true)), false);
+$$;
+
+-- Realtime helper: is the topic the caller's own user channel
+-- (`chats:user:<uid>`, room and membership changes)?
+CREATE OR REPLACE FUNCTION chats.is_own_user_topic(topic text)
+    RETURNS boolean
+    LANGUAGE sql
+    STABLE
+    SECURITY INVOKER
+    SET search_path = ''
+AS $$
+    SELECT auth.uid() IS NOT NULL AND topic = 'chats:user:' || auth.uid()::text;
+$$;
+
+-- Realtime helpers: online status channels (`online-user-<uid>`, see
+-- SupabaseChatCoreConfig.realtimeOnlineUserPrefixChannel). Any signed-in
+-- user may watch any user's status (like profiles, readable by everyone),
+-- only the user themselves may publish it.
+CREATE OR REPLACE FUNCTION chats.is_presence_topic(topic text)
+    RETURNS boolean
+    LANGUAGE sql
+    STABLE
+    SECURITY INVOKER
+    SET search_path = ''
+AS $$
+    SELECT auth.uid() IS NOT NULL
+       AND coalesce(topic ~* '^online-user-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', false);
+$$;
+
+CREATE OR REPLACE FUNCTION chats.is_own_presence_topic(topic text)
+    RETURNS boolean
+    LANGUAGE sql
+    STABLE
+    SECURITY INVOKER
+    SET search_path = ''
+AS $$
+    SELECT auth.uid() IS NOT NULL AND topic = 'online-user-' || auth.uid()::text;
 $$;
 
 -- Storage helper: is the first folder of an object path (`<uid>/<file>`)
@@ -353,6 +449,7 @@ AS $$
 DECLARE
     v_uid text := auth.uid()::text;
     v_room_id uuid;
+    v_created_at timestamptz;
     v_reactions jsonb;
     v_users jsonb;
 BEGIN
@@ -360,13 +457,20 @@ BEGIN
         RAISE EXCEPTION 'invalid reaction' USING ERRCODE = '22023';
     END IF;
 
-    SELECT "roomId", coalesce(reactions, '{}'::jsonb)
-    INTO v_room_id, v_reactions
-    FROM chats.messages
-    WHERE id = p_message_id
-    FOR UPDATE;
+    -- Authorize and update the very same row: (id, "createdAt") is the
+    -- primary key. Ids are unique (chats.message_ids); STRICT makes sure an
+    -- ambiguous id can never select one row and update another.
+    BEGIN
+        SELECT "roomId", "createdAt", coalesce(reactions, '{}'::jsonb)
+        INTO STRICT v_room_id, v_created_at, v_reactions
+        FROM chats.messages
+        WHERE id = p_message_id
+        FOR UPDATE;
+    EXCEPTION WHEN NO_DATA_FOUND OR TOO_MANY_ROWS THEN
+        RAISE EXCEPTION 'message not found' USING ERRCODE = 'P0002';
+    END;
 
-    IF v_room_id IS NULL OR NOT chats.is_chat_member(v_room_id) THEN
+    IF NOT chats.is_chat_member(v_room_id) THEN
         RAISE EXCEPTION 'message not found' USING ERRCODE = 'P0002';
     END IF;
 
@@ -385,7 +489,7 @@ BEGIN
 
     UPDATE chats.messages
     SET reactions = CASE WHEN v_reactions = '{}'::jsonb THEN NULL ELSE v_reactions END
-    WHERE id = p_message_id;
+    WHERE id = p_message_id AND "createdAt" = v_created_at AND "roomId" = v_room_id;
 
     RETURN v_reactions;
 END;
@@ -442,9 +546,16 @@ CREATE OR REPLACE FUNCTION chats.set_message_pinned(p_message_id uuid, p_pinned 
 AS $$
 DECLARE
     v_room_id uuid;
+    v_created_at timestamptz;
 BEGIN
-    SELECT "roomId" INTO v_room_id FROM chats.messages WHERE id = p_message_id;
-    IF v_room_id IS NULL OR NOT chats.is_chat_member(v_room_id) THEN
+    -- Same row binding as chats.toggle_message_reaction().
+    BEGIN
+        SELECT "roomId", "createdAt" INTO STRICT v_room_id, v_created_at
+        FROM chats.messages WHERE id = p_message_id;
+    EXCEPTION WHEN NO_DATA_FOUND OR TOO_MANY_ROWS THEN
+        RAISE EXCEPTION 'message not found' USING ERRCODE = 'P0002';
+    END;
+    IF NOT chats.is_chat_member(v_room_id) THEN
         RAISE EXCEPTION 'message not found' USING ERRCODE = 'P0002';
     END IF;
     IF NOT chats.is_chat_admin(v_room_id) THEN
@@ -452,7 +563,7 @@ BEGIN
     END IF;
     UPDATE chats.messages
     SET pinned = CASE WHEN p_pinned THEN true END
-    WHERE id = p_message_id;
+    WHERE id = p_message_id AND "createdAt" = v_created_at AND "roomId" = v_room_id;
 END;
 $$;
 
@@ -561,13 +672,21 @@ CREATE POLICY "chats.room_members_grant_read"
     TO authenticated
     USING (chats.is_chat_member("roomId"));
 
--- Role changes. ("lastReadAt" goes through chats.mark_room_as_read().)
+-- Role changes, by the admins of a group room. Only the role column is
+-- writable at all (column privileges in 99_database_schema_permission.sql):
+-- moving a membership to another room or user would bypass the INSERT rules
+-- above (e.g. adding a third member to a direct room). "lastReadAt",
+-- "pinnedAt" and "mutedUntil" go through chats.mark_room_as_read(),
+-- chats.pin_room() and chats.mute_room().
 CREATE POLICY "chats.room_members_grant_update"
     ON chats.room_members
     AS PERMISSIVE
     FOR UPDATE
     TO authenticated
-    USING (chats.is_chat_admin("roomId"));
+    USING (
+        chats.chat_member_role("roomId") = 'admin'
+        AND EXISTS (SELECT 1 FROM chats.rooms r WHERE r.id = "roomId" AND r.type = 'group')
+    );
 
 -- Covers both "leave a room" (deleting your own row) and "remove a member"
 -- (a group admin deleting someone else's row). A room left without members
@@ -615,14 +734,23 @@ CREATE POLICY "chats.messages_grant_delete"
     );
 
 -- ----------------------------------------------------------------------------
--- Realtime: private room channels (`chats:room:<roomId>`)
+-- Realtime: private channels
 --
--- Realtime authorizes joining a private channel (receiving its broadcasts,
--- incl. the message changes sent by chats.broadcast_message_change) against
--- SELECT policies on realtime.messages, and sending to it (typing
--- indicator) against INSERT policies. Both are limited to room members.
--- Only topics starting with `chats:room:` are matched, so policies other
--- apps define on realtime.messages are unaffected.
+-- Realtime authorizes joining a private channel (receiving its broadcasts
+-- and presence) against SELECT policies on realtime.messages, and sending
+-- to it (broadcast, presence tracking) against INSERT policies:
+--
+--   chats:room:<roomId>         message changes, sent by the database only
+--                               (chats.broadcast_message_change): members
+--                               receive, nobody sends.
+--   chats:room:<roomId>:typing  typing indicator: members receive and send.
+--   chats:user:<uid>            room/membership changes of that user
+--                               (chats.send_room_change): the user only.
+--   online-user-<uid>           online status (Presence): any signed-in
+--                               user watches, only <uid> publishes.
+--
+-- Only these topic shapes are matched, so policies other apps define on
+-- realtime.messages are unaffected.
 -- ----------------------------------------------------------------------------
 DROP POLICY IF EXISTS "chats.realtime_room_read" ON realtime.messages;
 CREATE POLICY "chats.realtime_room_read"
@@ -630,7 +758,11 @@ CREATE POLICY "chats.realtime_room_read"
     AS PERMISSIVE
     FOR SELECT
     TO authenticated
-    USING (chats.is_chat_member_topic((SELECT realtime.topic())));
+    USING (
+        chats.is_chat_member_topic((SELECT realtime.topic()))
+        OR chats.is_own_user_topic((SELECT realtime.topic()))
+        OR chats.is_presence_topic((SELECT realtime.topic()))
+    );
 
 DROP POLICY IF EXISTS "chats.realtime_room_write" ON realtime.messages;
 CREATE POLICY "chats.realtime_room_write"
@@ -639,6 +771,6 @@ CREATE POLICY "chats.realtime_room_write"
     FOR INSERT
     TO authenticated
     WITH CHECK (
-        extension = 'broadcast'
-        AND chats.is_chat_member_topic((SELECT realtime.topic()))
+        (extension = 'broadcast' AND chats.is_chat_typing_topic((SELECT realtime.topic())))
+        OR (extension = 'presence' AND chats.is_own_presence_topic((SELECT realtime.topic())))
     );

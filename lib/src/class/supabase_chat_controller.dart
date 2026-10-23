@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
+import 'package:supabase_flutter/supabase_flutter.dart' show PostgrestException;
 
 import '../util.dart';
 import 'chat_room.dart';
@@ -369,7 +370,14 @@ class SupabaseChatController
     }
     unawaited(endTyping());
     try {
-      await _chatCore.sendMessage(local, _room.id);
+      try {
+        await _chatCore.sendMessage(local, _room.id);
+      } on SupabaseChatCoreRequestException catch (e) {
+        // Message ids are unique: a retry of a send that did reach the
+        // server (the response was lost) is refused as a duplicate. It is
+        // sent, as long as the stored message is our own.
+        if (!_isDuplicateId(e) || !await _isStoredAsOwn(local.id)) rethrow;
+      }
       final sent = _findById(local.id);
       if (sent != null && sent.status == core.MessageStatus.sending) {
         await _inner.updateMessage(
@@ -390,6 +398,16 @@ class SupabaseChatController
       }
       rethrow;
     }
+  }
+
+  static bool _isDuplicateId(SupabaseChatCoreRequestException e) {
+    final cause = e.cause;
+    return cause is PostgrestException && cause.code == '23505';
+  }
+
+  Future<bool> _isStoredAsOwn(String messageId) async {
+    final stored = await _chatCore.message(_room.id, messageId);
+    return stored != null && stored.authorId == _currentUserId;
   }
 
   /// Sends again a message whose [sendMessage] failed (status `error`).

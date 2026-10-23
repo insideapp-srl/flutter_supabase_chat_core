@@ -5,11 +5,11 @@ title: Package installation
 
 This package depends on [supabase_flutter](https://pub.dev/packages/supabase_flutter): follow its [instructions](https://supabase.com/docs/reference/dart/introduction) to add Supabase to your app.
 
-Requirements: `Dart >=3.8.0` and `Flutter >=3.32.0`.
+Requirements: `Dart >=3.9.0` and `Flutter >=3.35.0`.
 
 ```yaml
 dependencies:
-  flutter_supabase_chat_core: ^2.0.0-rc.2
+  flutter_supabase_chat_core: ^2.0.0-rc.3
   supabase_flutter: ^2.17.2
   uuid: ^4.5.1
 
