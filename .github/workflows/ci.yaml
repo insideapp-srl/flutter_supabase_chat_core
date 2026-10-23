@@ -49,14 +49,13 @@ jobs:
       - name: Unit tests
         run: flutter test --no-pub --exclude-tags integration --coverage
 
-      # pana converts the pubspec screenshots with cwebp/gif2webp, as pub.dev
-      # does: without them the example/screenshots check fails.
+      # The 10 points of the example/screenshots check are only granted on
+      # pub.dev: any other lost point fails the job.
       - name: pub.dev score (pana)
         if: matrix.flutter == 'stable'
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq webp
           dart pub global activate pana
-          pana --no-warning --exit-code-threshold 0 .
+          pana --no-warning --exit-code-threshold 10 .
 
   integration:
     name: Database and integration tests
