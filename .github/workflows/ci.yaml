@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         # The minimum version declared in pubspec.yaml, and the latest stable.
-        flutter: ['3.32.0', 'stable']
+        flutter: ['3.35.0', 'stable']
     steps:
       - uses: actions/checkout@v4
 
@@ -49,9 +49,12 @@ jobs:
       - name: Unit tests
         run: flutter test --no-pub --exclude-tags integration --coverage
 
+      # pana converts the pubspec screenshots with cwebp/gif2webp, as pub.dev
+      # does: without them the example/screenshots check fails.
       - name: pub.dev score (pana)
         if: matrix.flutter == 'stable'
         run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq webp
           dart pub global activate pana
           pana --no-warning --exit-code-threshold 0 .
 

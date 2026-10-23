@@ -5,7 +5,7 @@ title: Package installation
 
 This package depends on [supabase_flutter](https://pub.dev/packages/supabase_flutter): follow its [instructions](https://supabase.com/docs/reference/dart/introduction) to add Supabase to your app.
 
-Requirements: `Dart >=3.8.0` and `Flutter >=3.32.0`.
+Requirements: `Dart >=3.9.0` and `Flutter >=3.35.0`.
 
 ```yaml
 dependencies:

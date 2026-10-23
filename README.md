@@ -100,7 +100,7 @@ Flyer Chat is a platform for creating in-app chat experiences using Flutter. Thi
 
 ## Requirements
 
-- `Dart >=3.8.0` and `Flutter >=3.32.0`.
+- `Dart >=3.9.0` and `Flutter >=3.35.0`.
 - A [Supabase](https://supabase.com) project (cloud or self-hosted) with:
   - the `pg_partman` and `pg_cron` extensions available (the SQL scripts create them);
   - Realtime with **Broadcast from Database** support (Supabase cloud, or self-hosted `supabase/realtime` >= v2.33): message changes are sent by a database trigger;

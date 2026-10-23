@@ -28,7 +28,7 @@ dependencies:
   uuid: ^4.5.1
 ```
 
-Minimum SDKs are now `Dart >=3.8.0` and `Flutter >=3.32.0`.
+Minimum SDKs are now `Dart >=3.9.0` and `Flutter >=3.35.0`.
 
 `flutter_chat_ui` 2.12.0 moved its `Composer` to the experimental
 `material_ui` package, which crashes inside a standard `Scaffold` ("No

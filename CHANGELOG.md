@@ -60,6 +60,9 @@ and update the package together: the Realtime protocol changed, see
 
 ### Changed
 
+* Minimum SDKs raised to `Dart >=3.9.0` and `Flutter >=3.35.0`: the
+  `supabase_flutter` versions the package depends on (>=2.16.0) already
+  required Dart 3.9, so the previous minimum couldn't resolve.
 * `sendMessage` and `forwardMessages` let the database set `createdAt`.
 * `ChatForwardOrigin.claim` builds the forward request; the stored origin is
   read with `ChatForwardOrigin.of` as before.
