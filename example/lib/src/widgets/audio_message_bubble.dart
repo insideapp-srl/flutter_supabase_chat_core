@@ -92,7 +92,9 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
       // attach on every platform: fetch the (authenticated) bytes first.
       final response = await http.get(
         Uri.parse(widget.message.source),
-        headers: SupabaseChatCore.instance.httpSupabaseHeaders,
+        headers: SupabaseChatCore.instance.httpSupabaseHeadersFor(
+          widget.message.source,
+        ),
       );
       if (response.statusCode != 200) {
         throw SupabaseChatCoreStorageException(

@@ -110,7 +110,11 @@ class UserAvatar extends StatelessWidget {
           ? fallback
           : Image.network(
               imageUrl!,
-              headers: SupabaseChatCore.instance.httpSupabaseHeaders,
+              // Avatars are URLs chosen by users: the session is only sent
+              // to this project's Storage.
+              headers: SupabaseChatCore.instance.httpSupabaseHeadersFor(
+                imageUrl!,
+              ),
               fit: BoxFit.cover,
               width: size,
               height: size,

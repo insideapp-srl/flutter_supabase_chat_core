@@ -31,7 +31,7 @@ Two views, `chats.rooms_l` and `chats.messages_l`, are what the client reads: `r
 
 Writes that touch other people's rows (creating a room with its members, read receipts, reactions, pins) go through `SECURITY DEFINER` functions that check membership themselves. See [Security Rules](../guides/supabase-security-rls.md).
 
-[Supabase Realtime](https://supabase.com/docs/guides/realtime) keeps the UI live: message changes travel on a private Broadcast channel per room, sent by a database trigger; the rooms list follows Postgres Changes; online status uses Presence. See [Realtime](../guides/supabase-realtime.md).
+[Supabase Realtime](https://supabase.com/docs/guides/realtime) keeps the UI live: message changes travel on a private Broadcast channel per room, sent by a database trigger; room and membership changes on a private channel per user, also sent by the database; online status uses private Presence channels. See [Realtime](../guides/supabase-realtime.md).
 
 [Supabase Storage](https://supabase.com/docs/guides/storage) holds attachments (`chats_assets`, one folder per room) and avatars (`chats_user_avatar`, one folder per user), both private buckets.
 

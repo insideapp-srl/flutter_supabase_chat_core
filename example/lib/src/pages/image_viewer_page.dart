@@ -22,7 +22,9 @@ class ImageViewerPage extends StatelessWidget {
           tag: message.id,
           child: Image.network(
             message.source,
-            headers: SupabaseChatCore.instance.httpSupabaseHeaders,
+            headers: SupabaseChatCore.instance.httpSupabaseHeadersFor(
+              message.source,
+            ),
             loadingBuilder: (context, child, progress) => progress == null
                 ? child
                 : const CircularProgressIndicator(color: Colors.white),

@@ -211,11 +211,11 @@ await _controller.sendMessage(
 ```
 
 * The message is inserted locally right away with status `sending`.
-* `authorId` is always set to the logged-in user (RLS enforces it too), `createdAt` defaults to now, and the database sets the status to `sent`.
-* The id is stored as-is, so the Realtime echo of the insert updates the local copy instead of duplicating it. Use `const Uuid().v7()`: v7 ids are time-ordered like the database's own `chats.uuid_generate_v7()`, which keeps the primary key index insert-friendly.
-* On failure the local copy keeps status `error` and the exception is rethrown; `retryMessage(message)` sends it again, `deleteMessage(id)` drops it locally.
+* `authorId` is always set to the logged-in user (RLS enforces it too). `createdAt` is assigned by the database (the local copy keeps the device time until the Realtime echo replaces it): a device clock can't decide where a message lands in everyone's timeline. The database also sets the status to `sent`.
+* The id is stored as-is, so the Realtime echo of the insert updates the local copy instead of duplicating it. Use `const Uuid().v7()`: v7 ids are time-ordered like the database's own `chats.uuid_generate_v7()`, which keeps the primary key index insert-friendly. Ids are unique: an id already used by another message is rejected.
+* On failure the local copy keeps status `error` and the exception is rethrown; `retryMessage(message)` sends it again (a retry of a send that did reach the server is recognized and marked sent), `deleteMessage(id)` drops it locally.
 
-`sendMessage` also stops the typing indicator. Upload attachments first with `SupabaseChatCore.instance.uploadAsset(room, fileName, bytes)`: it returns an `UploadAssetResult` with the authenticated `url`, the detected `mimeType` and the object `path` (`<roomId>/<uuid v7>-<file name>`). Load those URLs with `SupabaseChatCore.instance.httpSupabaseHeaders` (e.g. `FlyerChatImageMessage(headers: ...)`).
+`sendMessage` also stops the typing indicator. Upload attachments first with `SupabaseChatCore.instance.uploadAsset(room, fileName, bytes)`: it returns an `UploadAssetResult` with the authenticated `url`, the detected `mimeType` and the object `path` (`<roomId>/<uuid v7>-<file name>`). Load those URLs with `SupabaseChatCore.instance.httpSupabaseHeadersFor(url)` (e.g. `FlyerChatImageMessage(headers: chatCore.httpSupabaseHeadersFor(message.source))`): it returns the access token only for this project's Storage URLs. Avatars, room images and message sources are written by users and can point at any server, so never attach the token to them unconditionally (the deprecated `httpSupabaseHeaders` does).
 
 `SupabaseChatCore.instance.sendMessage(message, roomId)` sends without the optimistic part, e.g. from code that doesn't use a controller.
 
@@ -249,9 +249,10 @@ With `autoMarkAsRead` the controller calls `markRoomAsRead` once the first page 
 await SupabaseChatCore.instance.forwardMessages(room, selectedMessages, targetRoomId);
 ```
 
-* The copies are sent oldest first, a millisecond apart, so they keep their order.
+* The copies are sent oldest first in one insert, and keep their order (the database assigns their time).
 * Each copy keeps the content and the metadata, without the reply, the reactions, the pin and the edited mark.
 * Its metadata stores a `ChatForwardOrigin` under `forwardedFrom`: the original author's id and name and the original date. Read it with `ChatForwardOrigin.of(message)`, which returns `null` for messages that weren't forwarded, e.g. to show a "Forwarded from ..." header. Forwarding a forwarded message keeps the first origin.
+* The origin is attested by the database: the client only names the forwarded message (`ChatForwardOrigin.claim`), and the `chats.attest_forward_origin` trigger fills in its real author and date after checking the forwarder can read it. Any other `forwardedFrom` value is rejected, so an origin can't be made up.
 * The author's name is a snapshot taken when forwarding: the recipients may not share a room with the original author, so they can't read their profile.
 * Attachments stored in the chat assets bucket are copied into `toRoomId`'s folder, since the Storage policies only let members of a room read its files; other URLs are kept as they are.
 * `TextStreamMessage`s and `UnsupportedMessage`s can't be stored and are skipped.
@@ -324,7 +325,7 @@ Hooks are evaluated on every call, so they can read state that changes at runtim
 Hooks only narrow what the client asks for. If a scope is a security boundary, enforce the same rule server side with RLS policies.
 :::
 
-When you rename tables, views, buckets or `realtimeRoomChannelPrefix`, update the SQL scripts accordingly: the channel prefix is also hard-coded in the `chats.broadcast_message_change` trigger and in `chats.is_chat_member_topic`.
+When you rename tables, views, buckets or the Realtime channel prefixes, update the SQL scripts accordingly: the prefixes are also hard-coded in the triggers (`chats.broadcast_message_change`, `chats.send_room_change`), in the Realtime topic helpers (`chats.room_id_from_topic`, `chats.is_own_user_topic`, `chats.is_presence_topic`, `chats.is_own_presence_topic`), and the chat assets bucket in `chats.queue_media_for_deletion` and the `cleanup-media` function (`CHAT_ASSETS_BUCKET`).
 
 To work with a different `SupabaseClient` (e.g. several logged-in users in one process, as the integration tests do), create your own `SupabaseChatCore(client: ..., config: ...)`, pass it as `chatCore:` to controllers and widgets, and `dispose()` it when done.
 
