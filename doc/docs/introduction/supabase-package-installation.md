@@ -9,7 +9,7 @@ Requirements: `Dart >=3.9.0` and `Flutter >=3.35.0`.
 
 ```yaml
 dependencies:
-  flutter_supabase_chat_core: ^2.0.0-rc.3
+  flutter_supabase_chat_core: ^2.0.0
   supabase_flutter: ^2.17.2
   uuid: ^4.5.1
 
