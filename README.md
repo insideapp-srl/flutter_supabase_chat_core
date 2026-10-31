@@ -110,7 +110,7 @@ Flyer Chat is a platform for creating in-app chat experiences using Flutter. Thi
 
 ```yaml
 dependencies:
-  flutter_supabase_chat_core: ^2.0.0-rc.3
+  flutter_supabase_chat_core: ^2.0.0
   supabase_flutter: ^2.17.2
   uuid: ^4.5.1
 

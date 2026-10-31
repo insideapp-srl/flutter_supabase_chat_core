@@ -1,3 +1,50 @@
+## [2.0.0] - 2026-10-31
+#### [@rickypid](https://github.com/rickypid)
+
+Stable release of 2.0.0. Same package code and database as `2.0.0-rc.3`
+(only the example, documentation and CI dependencies were updated): the
+release candidates below list every change since 1.6.2.
+
+⚠️⚠️ **Breaking change: Dart API and database schema, see [MIGRATION.md](MIGRATION.md)** ⚠️⚠️
+
+### Highlights
+
+* Built on `flutter_chat_core`/`flutter_chat_ui` 2.x: `ChatRoom`, `ChatUser`
+  and `Message` replace the `flutter_chat_types` models.
+* Redesigned database: uuid ids, `timestamptz` dates, `chats.room_members`,
+  messages partitioned by week, message and room changes over private
+  Realtime Broadcast channels. The same SQL scripts create a fresh database
+  or migrate a 1.x one.
+* `SupabaseChatRoomsController` (paginated, searchable rooms list with
+  unread counters) and Telegram-like features: read receipts, replies,
+  reactions, editing, pinned messages, forwarding, message search, pinned and
+  muted rooms, group roles, optimistic sending with retry.
+* Stricter security: RLS and column privileges, database-owned message
+  metadata, private Realtime channels, `httpSupabaseHeadersFor(url)`.
+* Scoping hooks to keep the chats of different workspaces apart, injectable
+  client, `closeSession()`/`dispose()`.
+
+### Upgrading
+
+* From 1.x: follow [MIGRATION.md](MIGRATION.md) (maintenance window
+  required).
+* From `2.0.0-rc.3`: update the package, nothing else changes.
+* From `2.0.0-rc.1`/`rc.2`: re-run the SQL scripts and update the package at
+  the same time, see
+  [MIGRATION.md](MIGRATION.md#upgrading-from-a-200-release-candidate).
+
+### Dependencies
+
+* Example: `file_picker: ^13.1.0`, `file_saver: ^0.7.0` (needs a Flutter
+  stable shipping `meta` 1.19), `open_filex: ^5.0.0`,
+  `cupertino_icons: ^2.0.0`. `flutter_chat_ui` stays pinned to
+  `'>=2.11.1 <2.12.0'`.
+* Documentation site: React 19; TypeScript stays on 5.x (the Docusaurus
+  `tsconfig` doesn't support TypeScript 7).
+* GitHub Actions: `actions/checkout@v7`, `actions/setup-node@v7`,
+  `actions/upload-pages-artifact@v5`, `actions/deploy-pages@v5`,
+  `supabase/setup-cli@v3`.
+
 ## [2.0.0-rc.3] - 2026-10-23
 #### [@rickypid](https://github.com/rickypid)
 
