@@ -24,7 +24,7 @@ dependencies:
   # doesn't satisfy a standard Scaffold's Material ancestor -- crashes with
   # "No Material widget found." Pinned below it until that's sorted out
   # upstream.
-  flutter_chat_ui: '>=2.11.1 <2.12.0'
+  flutter_chat_ui: ^2.12.0
   flutter_supabase_chat_core:
     path: ../
   flyer_chat_file_message: ^2.4.0
