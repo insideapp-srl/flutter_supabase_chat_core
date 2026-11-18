@@ -1,5 +1,5 @@
 import 'dart:js_interop';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:web/web.dart' as web;
 
 import 'platforms_widgets_binding.dart';

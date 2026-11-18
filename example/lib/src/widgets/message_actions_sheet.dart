@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
+import 'package:material_ui/material_ui.dart';
 
 /// What the user picked in [MessageActionsSheet].
 sealed class MessageAction {

@@ -3,10 +3,10 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
 import 'package:http/http.dart' as http;
+import 'package:material_ui/material_ui.dart';
 
 import '../theme/app_theme.dart';
 import '../utils/attachments.dart';
@@ -115,9 +115,8 @@ class _AudioMessageBubbleState extends State<AudioMessageBubble> {
       await action();
     } on Object catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Cannot play audio: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Cannot play audio: $e')));
       }
     }
   }

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Friendly placeholder for empty lists / unselected panes.
 class EmptyState extends StatelessWidget {

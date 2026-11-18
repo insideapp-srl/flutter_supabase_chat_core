@@ -1,6 +1,6 @@
 {
   "name": "flutter-supabase-chat-core",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
@@ -27,7 +27,7 @@
     "@docusaurus/module-type-aliases": "3.10.2",
     "@docusaurus/tsconfig": "3.10.2",
     "@docusaurus/types": "3.10.2",
-    "typescript": "~5.7.2"
+    "typescript": "~7.0.2"
   },
   "browserslist": {
     "production": [

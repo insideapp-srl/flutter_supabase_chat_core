@@ -1,3 +1,27 @@
+## [2.0.1] - 2026-11-18
+#### [@rickypid](https://github.com/rickypid)
+
+Maintenance release: no API or database changes.
+
+### Fixed
+
+* Full pub points again: the package imports `package:flutter/widgets.dart`
+  instead of `package:flutter/material.dart`, deprecated since Flutter 3.47
+  in favour of `material_ui`.
+
+### Dependencies
+
+* Example: `flutter_chat_ui: ^2.12.0` (unpinned) and the `flyer_chat_*`
+  messages, all built on `material_ui`. The example now imports
+  `package:material_ui/material_ui.dart` (new dependency
+  `material_ui: ^1.11.1`), so it requires Flutter 3.47 or newer: mixing it
+  with `package:flutter/material.dart` caused "No Material widget found" in
+  the composer.
+* Documentation site: TypeScript 7 (`tsconfig.json` no longer sets
+  `baseUrl`, removed in TypeScript 7). Transitive dependencies updated to
+  fix the npm advisories on `joi`, `follow-redirects`, `body-parser` and
+  `serialize-javascript` (`npm audit`: 0 vulnerabilities).
+
 ## [2.0.0] - 2026-10-31
 #### [@rickypid](https://github.com/rickypid)
 

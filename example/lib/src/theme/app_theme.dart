@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
+import 'package:material_ui/material_ui.dart';
 
 /// Telegram-like accent blue the whole Material 3 palette is derived from.
 const _seed = Color(0xFF3390EC);
@@ -184,9 +184,8 @@ abstract final class AppTheme {
 
   /// `flutter_chat_ui` theme derived from [theme].
   ///
-  /// Built field by field rather than with `ChatTheme.fromThemeData`: since
-  /// flutter_chat_core 2.9.1 that factory takes the experimental
-  /// `material_ui` package's ThemeData, not Flutter's.
+  /// Built field by field rather than with `ChatTheme.fromThemeData` so the
+  /// bubbles use the Telegram-like [ChatPalette] instead of the color scheme.
   static core.ChatTheme chatTheme(ThemeData theme) {
     final scheme = theme.colorScheme;
     final palette = theme.extension<ChatPalette>() ?? ChatPalette.light;

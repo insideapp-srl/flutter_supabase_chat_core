@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 import '../class/supabase_chat_core.dart';
 import '../class/user_online_status.dart';

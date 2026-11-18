@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../utils/format.dart';
 
