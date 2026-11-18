@@ -18,7 +18,9 @@ Maintenance release: no API or database changes.
   with `package:flutter/material.dart` caused "No Material widget found" in
   the composer.
 * Documentation site: TypeScript 7 (`tsconfig.json` no longer sets
-  `baseUrl`, removed in TypeScript 7).
+  `baseUrl`, removed in TypeScript 7). Transitive dependencies updated to
+  fix the npm advisories on `joi`, `follow-redirects`, `body-parser` and
+  `serialize-javascript` (`npm audit`: 0 vulnerabilities).
 
 ## [2.0.0] - 2026-10-31
 #### [@rickypid](https://github.com/rickypid)
