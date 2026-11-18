@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app.dart';
@@ -44,9 +44,8 @@ class _ProfileSheetState extends State<ProfileSheet> {
       await action();
     } on SupabaseChatCoreException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$error: ${e.cause ?? e}')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$error: ${e.cause ?? e}')));
       }
     } finally {
       if (mounted) setState(() => _saving = false);

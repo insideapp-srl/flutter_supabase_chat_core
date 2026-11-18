@@ -27,7 +27,7 @@ Since 2.x the package builds on [`flutter_chat_core`](https://pub.dev/packages/f
 `flutter_chat_ui` 2.x ships no renderer for images, files or audio (only a minimal text fallback): add one `flyer_chat_*_message` package per message type you render, or write your own builder (the example app has its own voice message bubble).
 
 :::caution
-`flutter_chat_ui` 2.12.0 moved its `Composer` to the experimental `material_ui` package, which crashes inside a standard `Scaffold` ("No Material widget found"). The example app pins `flutter_chat_ui: '>=2.11.1 <2.12.0'`. For the same reason, since `flutter_chat_core` 2.9.1 `ChatTheme.fromThemeData` takes a `material_ui` theme: build the `ChatTheme` field by field, as `example/lib/src/theme/app_theme.dart` does.
+Since 2.12.0 `flutter_chat_ui` (and the `flyer_chat_*_message` packages) build on [`material_ui`](https://pub.dev/packages/material_ui), the Material library decoupled from Flutter (3.47 or newer). Its `Material` and `Theme` are distinct from the deprecated `package:flutter/material.dart` ones: an app built with `flutter/material.dart` crashes in the composer ("No Material widget found"). Import `package:material_ui/material_ui.dart` in your app instead, as the example app does; `ChatTheme.fromThemeData` (since `flutter_chat_core` 2.9.1) takes that `ThemeData` too.
 :::
 
 Initialize Supabase before using the package: `SupabaseChatCore.instance` is bound to `Supabase.instance.client`.

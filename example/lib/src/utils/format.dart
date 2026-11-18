@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
+import 'package:material_ui/material_ui.dart';
 
 /// Compact timestamp for lists: time today, weekday this week, date before.
 String formatListTime(BuildContext context, DateTime? date) {

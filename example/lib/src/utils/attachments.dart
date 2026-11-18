@@ -4,11 +4,11 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -257,9 +257,8 @@ Future<void> openFileMessage(
       ? name.split('.').last.toLowerCase()
       : '';
   if (!_openableExtensions.contains(extension)) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Saved to $saved')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('Saved to $saved')));
     return;
   }
   final open = await showDialog<bool>(

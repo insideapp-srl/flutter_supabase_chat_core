@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../widgets/user_avatar.dart';
 import 'new_chat_sheet.dart';

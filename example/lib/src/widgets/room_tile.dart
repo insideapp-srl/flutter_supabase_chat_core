@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../utils/format.dart';
 import 'user_avatar.dart';
@@ -185,10 +185,8 @@ class _Badge extends StatelessWidget {
       ),
       child: Text(
         count >= 100 ? '99+' : '$count',
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.w700,
-        ),
+        style: Theme.of(context).textTheme.labelSmall
+            ?.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
       ),
     );
   }

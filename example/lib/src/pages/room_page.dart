@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
@@ -9,6 +8,7 @@ import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
 import 'package:flyer_chat_file_message/flyer_chat_file_message.dart';
 import 'package:flyer_chat_image_message/flyer_chat_image_message.dart';
 import 'package:flyer_chat_text_message/flyer_chat_text_message.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:uuid/uuid.dart';
 
 import '../theme/app_theme.dart';
@@ -785,15 +785,13 @@ class _RoomPageState extends State<RoomPage> {
                           ),
                         ),
                       ),
-                  fileMessageBuilder:
-                      (
-                        context,
-                        message,
-                        index, {
-                        required isSentByMe,
-                        groupStatus,
-                      }) =>
-                          FlyerChatFileMessage(message: message, index: index),
+                  fileMessageBuilder: (
+                    context,
+                    message,
+                    index, {
+                    required isSentByMe,
+                    groupStatus,
+                  }) => FlyerChatFileMessage(message: message, index: index),
                   audioMessageBuilder:
                       (
                         context,

@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_supabase_chat_core/flutter_supabase_chat_core.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../widgets/chat_wallpaper.dart';
 import '../widgets/empty_state.dart';

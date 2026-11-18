@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 /// Delivers app lifecycle changes (foreground/background) to a
 /// [WidgetsBindingObserver] in a platform-appropriate way.

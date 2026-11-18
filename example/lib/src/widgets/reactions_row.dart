@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
+import 'package:material_ui/material_ui.dart';
 
 /// Reaction chips under a message bubble (emoji + count). Tapping one
 /// toggles the current user's reaction.
